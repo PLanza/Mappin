@@ -23,22 +23,12 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Install CUDA
+      env:
+        cuda: "12.0"
       run: |
-        wget https://raw.githubusercontent.com/KonduitAI/cuda-install/master/.github/actions/install-cuda-ubuntu/install_cuda_ubuntu.sh
+        wget https://raw.githubusercontent.com/ptheywood/cuda-cmake-github-actions/scripts/actions/install_cuda_ubuntu.sh
         chmod +x ./install_cuda_ubuntu.sh
         ./install_cuda_ubuntu.sh
-        CUDA_VERSION_MAJOR_MINOR=${cuda}
-        # Split the version.
-        # We (might/probably) don't know PATCH at this point - it depends which version gets installed.
-        export CUDA_MAJOR=$(echo "${CUDA_VERSION_MAJOR_MINOR}" | cut -d. -f1)
-        export CUDA_MINOR=$(echo "${CUDA_VERSION_MAJOR_MINOR}" | cut -d. -f2)
-        export CUDA_PATCH=$(echo "${CUDA_VERSION_MAJOR_MINOR}" | cut -d. -f3)
-        # Set paths for subsequent steps, using ${CUDA_PATH}
-        echo "Adding CUDA to CUDA_PATH, PATH and LD_LIBRARY_PATH"
-        echo "CUDA_PATH=/usr/local/cuda-${CUDA_MAJOR}${CUDA_MINOR}" >> $GITHUB_ENV
-        echo "${CUDA_PATH}/bin" >> $GITHUB_PATH
-        echo "LD_LIBRARY_PATH=${CUDA_PATH}/lib:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-        echo "Added Cuda path ${CUDA_PATH} LD Lib Path ${LD_LIBRARY_PATH}"
       shell: bash
       
     - name: Configure CMake
