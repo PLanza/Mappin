@@ -24,7 +24,7 @@ jobs:
 
     - name: Install CUDA
       run: |
-        ls
+        wget https://raw.githubusercontent.com/KonduitAI/cuda-install/master/.github/actions/install-cuda-ubuntu/install_cuda_ubuntu.sh
         chmod +x ./.github/workflows/install_cuda_ubuntu.sh
         ./.github/workflows/install_cuda_ubuntu.sh
         CUDA_VERSION_MAJOR_MINOR=${cuda}
