@@ -24,6 +24,7 @@ jobs:
 
     - name: Install CUDA
       run: |
+        ls
         chmod +x ./.github/workflows/install_cuda_ubuntu.sh
         ./.github/workflows/install_cuda_ubuntu.sh
         CUDA_VERSION_MAJOR_MINOR=${cuda}
