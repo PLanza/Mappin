@@ -25,8 +25,8 @@ jobs:
     - name: Install CUDA
       run: |
         wget https://raw.githubusercontent.com/KonduitAI/cuda-install/master/.github/actions/install-cuda-ubuntu/install_cuda_ubuntu.sh
-        chmod +x ./.github/workflows/install_cuda_ubuntu.sh
-        ./.github/workflows/install_cuda_ubuntu.sh
+        chmod +x ./install_cuda_ubuntu.sh
+        ./install_cuda_ubuntu.sh
         CUDA_VERSION_MAJOR_MINOR=${cuda}
         # Split the version.
         # We (might/probably) don't know PATCH at this point - it depends which version gets installed.
