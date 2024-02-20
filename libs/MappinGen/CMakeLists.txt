@@ -13,13 +13,17 @@ set(LIBRARY_SOURCE_DIR
 )
 set(LIBRARY_SOURCE
     ${LIBRARY_SOURCE_DIR}/MappinGen.cpp
+    ${LIBRARY_SOURCE_DIR}/ParseGrammar.cpp
+    ${LIBRARY_SOURCE_DIR}/Grammar.cpp
 )
 
 set(LIBRARY_HEADERS_DIR
   include/${LIBRARY_NAME}
 )
 set(LIBRARY_HEADERS
-    # ${LIBRARY_HEADER_DIR}/MappinGen.h
+  ${LIBRARY_HEADERS_DIR}/MappinGen.hpp
+  ${LIBRARY_HEADERS_DIR}/Utils.hpp
+  ${LIBRARY_HEADERS_DIR}/Grammar.hpp
 )
 
 project(${PROJECT_NAME}

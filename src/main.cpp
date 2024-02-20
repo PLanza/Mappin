@@ -1,6 +1,8 @@
-#include <MappinGen/MappinGen.h>
+#include <MappinGen/Grammar.hpp>
+#include <MappinGen/MappinGen.hpp>
 
 int main() {
-  test(5);
+  GrammarParser g_parser("examples/test.grammar");
+  grammar::TermOrNonTerm t = grammar::newTerminal("A");
   return 0;
 };
