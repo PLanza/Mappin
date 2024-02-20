@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "MappinGen.hpp"
 
@@ -12,7 +13,10 @@ GrammarParser::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), grammar(new grammar::Grammar) {
   this->grammar_fs.open(this->file_name);
 
-  std::getline(this->grammar_fs, this->curr_line);
+  if (this->grammar_fs.is_open())
+    std::getline(this->grammar_fs, this->curr_line);
+  else
+    std::cout << "Couldn't open file" << std::endl;
 };
 
 bool GrammarParser::eof() { return this->grammar_fs.eof(); }
@@ -88,13 +92,15 @@ bool GrammarParser::bumpIf(const char *prefix) {
 std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
   std::cout << "Parsing Grammar file " << this->file_name << std::endl;
 
-  while (!this->eof()) {
-    this->parseGrammarDefinition();
+  while (!this->eof()) { this->parseGrammarDefinition();
   }
 
   return std::move(this->grammar);
 }
 
+// Parses an instance of a grammar definition. For example:
+//  a := b c
+//     | A
 void GrammarParser::parseGrammarDefinition() {
   std::string def_name = "";
   bool start_rule = false;
@@ -103,4 +109,54 @@ void GrammarParser::parseGrammarDefinition() {
     this->bumpAndBumpSpace();
     start_rule = true;
   }
+
+  while (!this->eof() && (islower(this->getChar()) || this->getChar() == '_')) {
+    def_name.push_back(this->getChar());
+    this->bump();
+  }
+  this->bumpSpace();
+
+  if (!this->bumpIf(":=")) {
+    std::cout << "ERROR: Expected a lowercase non-terminal name" << std::endl;
+    return;
+  }
+  this->bumpSpace();
+
+  std::vector<std::vector<grammar::TermOrNonTerm>> right_hand_sides = {
+      this->parseGrammarRHS()};
+  while (this->getChar() == '|') {
+    this->bumpAndBumpSpace();
+    right_hand_sides.push_back(this->parseGrammarRHS());
+  }
+
+  this->grammar->addRule(def_name, right_hand_sides, start_rule);
+}
+
+// Parses the right hand side of a grammar definition.
+// E.g. `b c` in `a := b c`
+std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
+  std::vector<grammar::TermOrNonTerm> right_hand_side;
+
+  while (isalpha(this->getChar())) {
+    grammar::TermKind kind;
+    if (islower(this->getChar()))
+      kind = grammar::NON_TERM;
+    else if (isupper(this->getChar()))
+      kind = grammar::TERM;
+    else
+      std::cout << "ERROR: Expected terminal/non-terminal" << std::endl;
+
+    std::string name;
+    while (isalpha(this->getChar()) || this->getChar() == '_') {
+      name.push_back(this->getChar());
+      this->bump();
+    }
+    this->bumpAndBumpSpace();
+
+    right_hand_side.push_back(kind == grammar::TERM
+                                  ? grammar::newTerminal(name.c_str())
+                                  : grammar::newNonTerminal(name.c_str()));
+  }
+
+  return right_hand_side;
 }

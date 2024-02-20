@@ -32,10 +32,13 @@ TermOrNonTerm newNonTerminal(const char *name);
 class Grammar {
 public:
   Grammar();
+  void addRule(std::string, std::vector<std::vector<TermOrNonTerm>>, bool);
+  void print();
 
 private:
-  std::unordered_map<std::string, std::vector<TermOrNonTerm>> rules;
-  NonTerminal start_rule;
+  std::unordered_map<std::string, std::vector<std::vector<TermOrNonTerm>>>
+      rules;
+  std::string start_rule;
 };
 
 } // namespace grammar

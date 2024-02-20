@@ -4,6 +4,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "Grammar.hpp"
 #include "Utils.hpp"
@@ -24,13 +25,14 @@ private:
   char getChar();
   bool bump();
   bool bumpSpace();
-  bool bumpIf(const char *prefix);
   bool bumpAndBumpSpace();
+  bool bumpIf(const char *prefix);
 
 public:
   GrammarParser(const char *file_name);
   std::unique_ptr<grammar::Grammar> parseGrammar();
   void parseGrammarDefinition();
+  std::vector<grammar::TermOrNonTerm> parseGrammarRHS();
 };
 
 #endif

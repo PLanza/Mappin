@@ -3,6 +3,7 @@
 
 int main() {
   GrammarParser g_parser("examples/test.grammar");
-  grammar::TermOrNonTerm t = grammar::newTerminal("A");
+  std::unique_ptr<grammar::Grammar> g = g_parser.parseGrammar();
+  g->print();
   return 0;
 };
