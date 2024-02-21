@@ -24,13 +24,13 @@ set(HEADERS_DIR
   include
 )
 set(_HEADERS
-  # ${HEADERS_DIR}/MappinGen.h
 )
 
 set(LIBRARIES_DIR
   libs
 )
 set(LIBRARIES
+  MappinUtil
   MappinGen
   MappinParse
 )

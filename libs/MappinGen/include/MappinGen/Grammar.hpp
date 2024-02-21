@@ -8,7 +8,6 @@
 namespace grammar {
 
 struct Terminal {
-public:
   const char *name;
 };
 

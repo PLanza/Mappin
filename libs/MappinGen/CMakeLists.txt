@@ -8,22 +8,25 @@ set(LIBRARY_NAME
   MappinGen
 )
 
-set(LIBRARY_SOURCE_DIR
+set(SOURCE_DIR
     src
 )
-set(LIBRARY_SOURCE
-    ${LIBRARY_SOURCE_DIR}/MappinGen.cpp
-    ${LIBRARY_SOURCE_DIR}/ParseGrammar.cpp
-    ${LIBRARY_SOURCE_DIR}/Grammar.cpp
+set(SOURCE
+    ${SOURCE_DIR}/MappinGen.cpp
+    ${SOURCE_DIR}/ParseGrammar.cpp
+    ${SOURCE_DIR}/Grammar.cpp
 )
 
-set(LIBRARY_HEADERS_DIR
+set(HEADERS_DIR
   include/${LIBRARY_NAME}
 )
-set(LIBRARY_HEADERS
-  ${LIBRARY_HEADERS_DIR}/MappinGen.hpp
-  ${LIBRARY_HEADERS_DIR}/Utils.hpp
-  ${LIBRARY_HEADERS_DIR}/Grammar.hpp
+set(HEADERS
+  ${HEADERS_DIR}/MappinGen.hpp
+  ${HEADERS_DIR}/Grammar.hpp
+)
+
+set(LIBRARIES
+  MappinUtil
 )
 
 project(${PROJECT_NAME}
@@ -31,7 +34,13 @@ project(${PROJECT_NAME}
         LANGUAGES CXX
 )
 
-add_library(${LIBRARY_NAME} STATIC ${LIBRARY_HEADERS} ${LIBRARY_SOURCE})
+# foreach(LIBRARY ${LIBRARIES})
+#   add_subdirectory("../${LIBRARY}" "../../build/libs/${LIBRARY}")
+# endforeach(LIBRARY)
+
+add_library(${LIBRARY_NAME} STATIC ${HEADERS} ${SOURCE})
+
+target_link_libraries(${PROJECT_NAME} ${LIBRARIES})
 
 # Imports MappinGen.h as `#include "MappinGen.h` when used internally
 # and as `#include <MappinGen/MappinGen.h>` when used externally
@@ -44,3 +53,4 @@ target_include_directories(${LIBRARY_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+

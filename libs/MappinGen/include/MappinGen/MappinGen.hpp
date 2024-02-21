@@ -7,9 +7,7 @@
 #include <vector>
 
 #include "Grammar.hpp"
-#include "Utils.hpp"
-
-void test(int x);
+#include <MappinUtil/MappinUtil.hpp>
 
 class GrammarParser {
 private:
