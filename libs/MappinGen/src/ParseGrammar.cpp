@@ -10,7 +10,8 @@
 #include "MappinGen.hpp"
 
 GrammarParser::GrammarParser(const char *file_name)
-    : file_name(file_name), pos({1, 0}), grammar(new grammar::Grammar) {
+    : file_name(file_name), pos({1, 0}), line_offset(0),
+      grammar(new grammar::Grammar) {
   this->grammar_fs.open(this->file_name);
 
   if (this->grammar_fs.is_open())
@@ -22,7 +23,7 @@ GrammarParser::GrammarParser(const char *file_name)
 bool GrammarParser::eof() { return this->grammar_fs.eof(); }
 bool GrammarParser::endOfLine() {
   return this->curr_line.empty() ||
-         this->line_offset == this->curr_line.length() - 1;
+         this->line_offset >= this->curr_line.length() - 1;
 }
 
 // Get the character at the parser head
@@ -42,7 +43,7 @@ bool GrammarParser::bump() {
 
     std::getline(this->grammar_fs, this->curr_line);
   } else {
-    this->line_offset += 0;
+    this->line_offset += 1;
     this->pos.column += 1;
   }
 
@@ -92,9 +93,11 @@ bool GrammarParser::bumpIf(const char *prefix) {
 std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
   std::cout << "Parsing Grammar file " << this->file_name << std::endl;
 
-  while (!this->eof()) { this->parseGrammarDefinition();
+  while (!this->eof()) {
+    this->parseGrammarDefinition();
   }
 
+  std::cout << "Done!" << std::endl;
   return std::move(this->grammar);
 }
 
@@ -137,6 +140,7 @@ void GrammarParser::parseGrammarDefinition() {
 std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
   std::vector<grammar::TermOrNonTerm> right_hand_side;
 
+  uint32_t line = this->pos.line;
   while (isalpha(this->getChar())) {
     grammar::TermKind kind;
     if (islower(this->getChar()))
@@ -150,12 +154,19 @@ std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
     while (isalpha(this->getChar()) || this->getChar() == '_') {
       name.push_back(this->getChar());
       this->bump();
-    }
-    this->bumpAndBumpSpace();
 
+      if (line != this->pos.line)
+        // Reached end of line so stop parsing
+        break;
+    }
+    this->bumpSpace();
+    char *name_array = new char[name.length() + 1];
+    strcpy(name_array, name.c_str());
     right_hand_side.push_back(kind == grammar::TERM
-                                  ? grammar::newTerminal(name.c_str())
-                                  : grammar::newNonTerminal(name.c_str()));
+                                  ? grammar::newTerminal(name_array)
+                                  : grammar::newNonTerminal(name_array));
+    if (line != this->pos.line)
+      break;
   }
 
   return right_hand_side;
