@@ -10,16 +10,7 @@
 #include "MappinGen.hpp"
 
 class UnableToOpenFileException : public MappinException {
-  const char *message() const override {
-    std::string msg = "Unable to open file ";
-    msg += this->file;
-    msg.push_back('.');
-
-    char *msg_c_str = new char[msg.length() + 1];
-    strcpy(msg_c_str, msg.c_str());
-
-    return msg_c_str;
-  }
+  const char *message() const override { return "Unable to open file."; }
 
   UnableToOpenFileException(const char *file, Span span, std::string line)
       : MappinException(file, span, line) {}
@@ -51,6 +42,41 @@ class ExpectedTermNonTermException : public MappinException {
   friend class MappinException;
 };
 
+MappinException *GrammarParser::exceptionAtSpan(GrammarParserExceptionKind kind,
+                                                Span span) {
+  switch (kind) {
+  case EXPECTED_NON_TERM:
+    return MappinException::newMappinException<ExpectedNonTerminalException>(
+               this->file_name, span,
+               std::optional<std::string>(this->curr_line))
+        .value();
+  case EXPECTED_TERM_NON_TERM:
+    return MappinException::newMappinException<ExpectedTermNonTermException>(
+               this->file_name, span,
+               std::optional<std::string>(this->curr_line))
+        .value();
+  case UNABLE_TO_OPEN_FILE:
+    return MappinException::newMappinException<UnableToOpenFileException>(
+               this->file_name, span, std::nullopt)
+        .value();
+  default:
+    return MappinException::newMappinException<MappinException>(
+               this->file_name, span,
+               std::optional<std::string>(this->curr_line))
+        .value();
+  }
+}
+
+MappinException *
+GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
+  return this->exceptionAtSpan(kind, {this->pos, this->pos});
+}
+
+MappinException *
+GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
+  return this->exceptionAtSpan(kind, {{this->pos.line, 1}, this->pos});
+}
+
 GrammarParser::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), line_offset(0),
       grammar(new grammar::Grammar) {
@@ -59,7 +85,7 @@ GrammarParser::GrammarParser(const char *file_name)
   if (this->grammar_fs.is_open())
     std::getline(this->grammar_fs, this->curr_line);
   else
-    std::cout << "Couldn't open file" << std::endl;
+    throw this->exceptionAtParserHead(UNABLE_TO_OPEN_FILE);
 };
 
 bool GrammarParser::eof() { return this->grammar_fs.eof(); }
@@ -130,34 +156,6 @@ bool GrammarParser::bumpIf(const char *prefix) {
     return true;
   } else
     return false;
-}
-
-MappinException *GrammarParser::exceptionAtSpan(GrammarParserExceptionKind kind,
-                                                Span span) {
-  switch (kind) {
-  case EXPECTED_NON_TERM:
-    return MappinException::newMappinException<ExpectedNonTerminalException>(
-               this->file_name, span, this->curr_line)
-        .value();
-  case EXPECTED_TERM_NON_TERM:
-    return MappinException::newMappinException<ExpectedTermNonTermException>(
-               this->file_name, span, this->curr_line)
-        .value();
-  default:
-    return MappinException::newMappinException<MappinException>(
-               this->file_name, span, this->curr_line)
-        .value();
-  }
-}
-
-MappinException *
-GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
-  return this->exceptionAtSpan(kind, {this->pos, this->pos});
-}
-
-MappinException *
-GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
-  return this->exceptionAtSpan(kind, {{this->pos.line, 1}, this->pos});
 }
 
 std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {

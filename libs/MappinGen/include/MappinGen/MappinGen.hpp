@@ -9,7 +9,11 @@
 #include "Grammar.hpp"
 #include <MappinUtil/MappinUtil.hpp>
 
-enum GrammarParserExceptionKind { EXPECTED_NON_TERM, EXPECTED_TERM_NON_TERM };
+enum GrammarParserExceptionKind {
+  UNABLE_TO_OPEN_FILE,
+  EXPECTED_NON_TERM,
+  EXPECTED_TERM_NON_TERM
+};
 
 class GrammarParser {
 private:

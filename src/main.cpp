@@ -3,8 +3,8 @@
 #include <iostream>
 
 int main() {
-  GrammarParser g_parser("examples/test.grammar");
   try {
+    GrammarParser g_parser("examples/test.grammar");
     std::unique_ptr<grammar::Grammar> g = g_parser.parseGrammar();
     g->print();
   } catch (MappinException *e) {
