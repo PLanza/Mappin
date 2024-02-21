@@ -1,5 +1,5 @@
 $a := b c
-b := B b Z
+b := 12 B b Z
    | x
 c := C c
    | y

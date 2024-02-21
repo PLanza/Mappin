@@ -9,6 +9,30 @@
 
 #include "MappinGen.hpp"
 
+class ExpectedNonTerminalException : public MappinException {
+  const char *message() const override {
+    return "Expected a lowercase non-terminal on the left hand side of a "
+           "grammar rule.";
+  }
+
+  ExpectedNonTerminalException(const char *file, Span span, std::string line)
+      : MappinException(file, span, line) {}
+
+  friend class MappinException;
+};
+
+class ExpectedTermNonTermException : public MappinException {
+  const char *message() const override {
+    return "Expected either a terminal or non-terminal on the right hand side "
+           "of a grammar rule.";
+  }
+
+  ExpectedTermNonTermException(const char *file, Span span, std::string line)
+      : MappinException(file, span, line) {}
+
+  friend class MappinException;
+};
+
 GrammarParser::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), line_offset(0),
       grammar(new grammar::Grammar) {
@@ -90,6 +114,24 @@ bool GrammarParser::bumpIf(const char *prefix) {
     return false;
 }
 
+MappinException *
+GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
+  switch (kind) {
+  case EXPECTED_NON_TERM:
+    return MappinException::newMappinException<ExpectedNonTerminalException>(
+               this->file_name, {this->pos, this->pos}, this->curr_line)
+        .value();
+  case EXPECTED_TERM_NON_TERM:
+    return MappinException::newMappinException<ExpectedTermNonTermException>(
+               this->file_name, {this->pos, this->pos}, this->curr_line)
+        .value();
+  default:
+    return MappinException::newMappinException<MappinException>(
+               this->file_name, {this->pos, this->pos}, this->curr_line)
+        .value();
+  }
+}
+
 std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
   std::cout << "Parsing Grammar file " << this->file_name << std::endl;
 
@@ -119,10 +161,9 @@ void GrammarParser::parseGrammarDefinition() {
   }
   this->bumpSpace();
 
-  if (!this->bumpIf(":=")) {
-    std::cout << "ERROR: Expected a lowercase non-terminal name" << std::endl;
-    return;
-  }
+  if (!this->bumpIf(":="))
+    throw this->exceptionAtParserHead(EXPECTED_NON_TERM);
+
   this->bumpSpace();
 
   std::vector<std::vector<grammar::TermOrNonTerm>> right_hand_sides = {
@@ -148,7 +189,7 @@ std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
     else if (isupper(this->getChar()))
       kind = grammar::TERM;
     else
-      std::cout << "ERROR: Expected terminal/non-terminal" << std::endl;
+      throw this->exceptionAtParserHead(EXPECTED_TERM_NON_TERM);
 
     std::string name;
     while (isalpha(this->getChar()) || this->getChar() == '_') {

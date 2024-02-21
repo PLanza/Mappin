@@ -9,6 +9,8 @@
 #include "Grammar.hpp"
 #include <MappinUtil/MappinUtil.hpp>
 
+enum GrammarParserExceptionKind { EXPECTED_NON_TERM, EXPECTED_TERM_NON_TERM };
+
 class GrammarParser {
 private:
   const char *file_name;
@@ -25,6 +27,8 @@ private:
   bool bumpSpace();
   bool bumpAndBumpSpace();
   bool bumpIf(const char *prefix);
+
+  MappinException *exceptionAtParserHead(GrammarParserExceptionKind kind);
 
 public:
   GrammarParser(const char *file_name);
