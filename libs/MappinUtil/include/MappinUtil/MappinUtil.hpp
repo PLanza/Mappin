@@ -21,13 +21,13 @@ struct Span {
 
 class MappinException : public std::exception {
 private:
-  const char *file;
   Span span;
   std::string line;
   virtual const char *message() const;
 
 protected:
   MappinException(const char *file, Span span, std::string line);
+  const char *file;
 
 public:
   const char *what() const noexcept override;

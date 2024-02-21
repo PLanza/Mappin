@@ -9,6 +9,24 @@
 
 #include "MappinGen.hpp"
 
+class UnableToOpenFileException : public MappinException {
+  const char *message() const override {
+    std::string msg = "Unable to open file ";
+    msg += this->file;
+    msg.push_back('.');
+
+    char *msg_c_str = new char[msg.length() + 1];
+    strcpy(msg_c_str, msg.c_str());
+
+    return msg_c_str;
+  }
+
+  UnableToOpenFileException(const char *file, Span span, std::string line)
+      : MappinException(file, span, line) {}
+
+  friend class MappinException;
+};
+
 class ExpectedNonTerminalException : public MappinException {
   const char *message() const override {
     return "Expected a lowercase non-terminal on the left hand side of a "
@@ -105,7 +123,7 @@ bool GrammarParser::bumpAndBumpSpace() {
 // Bump the parser head past `prefix``, if parser head points to `prefix`
 // If parser head does not point to `prefix` then return false
 bool GrammarParser::bumpIf(const char *prefix) {
-  if (this->curr_line.find(prefix, this->line_offset) != std::string::npos) {
+  if (this->curr_line.find(prefix, this->line_offset) == this->line_offset) {
     for (int i = 0; i < strlen(prefix); i++) {
       this->bump();
     }
@@ -114,22 +132,32 @@ bool GrammarParser::bumpIf(const char *prefix) {
     return false;
 }
 
-MappinException *
-GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
+MappinException *GrammarParser::exceptionAtSpan(GrammarParserExceptionKind kind,
+                                                Span span) {
   switch (kind) {
   case EXPECTED_NON_TERM:
     return MappinException::newMappinException<ExpectedNonTerminalException>(
-               this->file_name, {this->pos, this->pos}, this->curr_line)
+               this->file_name, span, this->curr_line)
         .value();
   case EXPECTED_TERM_NON_TERM:
     return MappinException::newMappinException<ExpectedTermNonTermException>(
-               this->file_name, {this->pos, this->pos}, this->curr_line)
+               this->file_name, span, this->curr_line)
         .value();
   default:
     return MappinException::newMappinException<MappinException>(
-               this->file_name, {this->pos, this->pos}, this->curr_line)
+               this->file_name, span, this->curr_line)
         .value();
   }
+}
+
+MappinException *
+GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
+  return this->exceptionAtSpan(kind, {this->pos, this->pos});
+}
+
+MappinException *
+GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
+  return this->exceptionAtSpan(kind, {{this->pos.line, 1}, this->pos});
 }
 
 std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
@@ -162,7 +190,7 @@ void GrammarParser::parseGrammarDefinition() {
   this->bumpSpace();
 
   if (!this->bumpIf(":="))
-    throw this->exceptionAtParserHead(EXPECTED_NON_TERM);
+    throw this->exceptionFromLineStart(EXPECTED_NON_TERM);
 
   this->bumpSpace();
 
@@ -182,7 +210,7 @@ std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
   std::vector<grammar::TermOrNonTerm> right_hand_side;
 
   uint32_t line = this->pos.line;
-  while (isalpha(this->getChar())) {
+  while (line == this->pos.line) {
     grammar::TermKind kind;
     if (islower(this->getChar()))
       kind = grammar::NON_TERM;
@@ -206,8 +234,6 @@ std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
     right_hand_side.push_back(kind == grammar::TERM
                                   ? grammar::newTerminal(name_array)
                                   : grammar::newNonTerminal(name_array));
-    if (line != this->pos.line)
-      break;
   }
 
   return right_hand_side;

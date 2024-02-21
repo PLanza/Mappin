@@ -28,7 +28,9 @@ private:
   bool bumpAndBumpSpace();
   bool bumpIf(const char *prefix);
 
+  MappinException *exceptionAtSpan(GrammarParserExceptionKind kind, Span span);
   MappinException *exceptionAtParserHead(GrammarParserExceptionKind kind);
+  MappinException *exceptionFromLineStart(GrammarParserExceptionKind kind);
 
 public:
   GrammarParser(const char *file_name);
