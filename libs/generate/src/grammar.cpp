@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Grammar.hpp"
+#include "grammar.hpp"
 
 namespace grammar {
 

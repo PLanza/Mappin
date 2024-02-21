@@ -1,6 +1,6 @@
-#include <MappinGen/MappinGen.hpp>
-#include <MappinUtil/MappinUtil.hpp>
+#include <generate/grammar_parser.hpp>
 #include <iostream>
+#include <util/util.hpp>
 
 int main() {
   try {

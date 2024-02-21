@@ -7,10 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
 
 #Create compile_commands.json
-# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_NAME
-  Mappin
+  mappin
 )
 
 set(SOURCE_DIR
@@ -30,14 +30,14 @@ set(LIBRARIES_DIR
   libs
 )
 set(LIBRARIES
-  MappinUtil
-  MappinGen
-  MappinParse
+  util
+  generate
+  parse
 )
 
 project(${PROJECT_NAME} 
         DESCRIPTION "Massively Parallel Parsing with Interaction Nets"
-        LANGUAGES CXX CUDA
+        LANGUAGES CXX #CUDA
 )
 
 # Create an executable using source files specified as SOURCE and with header

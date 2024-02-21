@@ -1,18 +1,17 @@
 cmake_minimum_required(VERSION 3.18)
 
 set(PROJECT_NAME
-  MappinUtil
+  util
 )
 
 set(LIBRARY_NAME
-  MappinUtil
+  util
 )
 
 set(LIBRARY_SOURCE_DIR
     src
 )
 set(LIBRARY_SOURCE
-    ${LIBRARY_SOURCE_DIR}/MappinUtil.cpp
     ${LIBRARY_SOURCE_DIR}/error.cpp
 )
 
@@ -20,7 +19,7 @@ set(LIBRARY_HEADERS_DIR
   include/${LIBRARY_NAME}
 )
 set(LIBRARY_HEADERS
-  ${LIBRARY_HEADERS_DIR}/MappinUtil.hpp
+  ${LIBRARY_HEADERS_DIR}/util.hpp
 )
 
 project(${PROJECT_NAME}

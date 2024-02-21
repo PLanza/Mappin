@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "MappinGen.hpp"
+#include "grammar_parser.hpp"
 
 class UnableToOpenFileException : public MappinException {
   const char *message() const override { return "Unable to open file."; }

@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "Grammar.hpp"
-#include <MappinUtil/MappinUtil.hpp>
+#include "grammar.hpp"
+#include <util/util.hpp>
 
 enum GrammarParserExceptionKind {
   UNABLE_TO_OPEN_FILE,
