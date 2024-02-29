@@ -192,24 +192,21 @@ void GrammarParser::parseGrammarDefinition() {
 
   this->bumpSpace();
 
-  std::vector<std::vector<grammar::TermOrNonTerm>> right_hand_sides = {
-      this->parseGrammarRHS()};
+  this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule);
   while (this->getChar() == '|') {
     this->bumpAndBumpSpace();
-    right_hand_sides.push_back(this->parseGrammarRHS());
+    this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule);
   }
-
-  this->grammar->addRule(def_name, right_hand_sides, start_rule);
 }
 
 // Parses the right hand side of a grammar definition.
 // E.g. `b c` in `a := b c`
-std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
-  std::vector<grammar::TermOrNonTerm> right_hand_side;
+std::vector<grammar::Token> GrammarParser::parseGrammarRHS() {
+  std::vector<grammar::Token> right_hand_side;
 
   uint32_t line = this->pos.line;
   while (line == this->pos.line) {
-    grammar::TermKind kind;
+    grammar::TokenKind kind;
     if (islower(this->getChar()))
       kind = grammar::NON_TERM;
     else if (isupper(this->getChar()))
@@ -227,11 +224,7 @@ std::vector<grammar::TermOrNonTerm> GrammarParser::parseGrammarRHS() {
         break;
     }
     this->bumpSpace();
-    char *name_array = new char[name.length() + 1];
-    strcpy(name_array, name.c_str());
-    right_hand_side.push_back(kind == grammar::TERM
-                                  ? grammar::newTerminal(name_array)
-                                  : grammar::newNonTerminal(name_array));
+    right_hand_side.push_back(this->grammar->newToken(kind, name));
   }
 
   return right_hand_side;

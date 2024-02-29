@@ -7,46 +7,64 @@
 
 namespace grammar {
 
-TermOrNonTerm newTerminal(const char *name) {
-  return {.kind = TERM, .term = {name}};
+Grammar::Grammar()
+    : next_nonterm_id(0), next_term_id(2), rules({}),
+      term_id_map({{"_START_", 0}, {"_END_", 1}}){};
+
+Token Grammar::newToken(TokenKind kind, std::string name) {
+  if (kind == TERM)
+    return this->newTerminal(name);
+  else
+    return this->newNonTerminal(name);
 }
 
-TermOrNonTerm newNonTerminal(const char *name) {
-  return {.kind = NON_TERM, .non_term = {name}};
+Token Grammar::newTerminal(std::string name) {
+  if (auto id_index = this->term_id_map.find(name);
+      id_index == this->term_id_map.end()) {
+    term_id_map[name] = this->next_term_id++;
+  }
+  return {TERM, term_id_map[name], name};
 }
 
-Grammar::Grammar() : rules({}), start_rule("") {}
+Token Grammar::newNonTerminal(std::string name) {
+  if (auto id_index = this->nonterm_id_map.find(name);
+      id_index == this->nonterm_id_map.end()) {
+    nonterm_id_map[name] = this->next_nonterm_id++;
+  }
+  return {NON_TERM, nonterm_id_map[name], name};
+}
 
 // Inserts a new rule to the grammar
 // If the non-terminal has already been defined, then
 // append the new right hand sides to the existing rule
-void Grammar::addRule(std::string name,
-                      std::vector<std::vector<TermOrNonTerm>> rhs, bool start) {
-  if (!this->rules.insert({name, rhs}).second)
-    this->rules[name].insert(this->rules[name].end(), rhs.begin(), rhs.end());
+void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start) {
+  Token head = this->newNonTerminal(name);
 
-  if (start)
-    this->start_rule = name;
+  if (start) {
+    this->start_rule = head.id;
+    rhs.insert(rhs.begin(), newTerminal("_START_"));
+    rhs.push_back(newTerminal("_END_"));
+  }
+
+  this->rules.push_back({head, rhs});
 }
 
 void Grammar::print() {
-  for (const auto &[name, rules] : this->rules) {
-    if (name == this->start_rule)
+  for (const auto &[head, rhs] : this->rules) {
+    if (head.id == this->start_rule)
       std::cout << "$ ";
-    std::cout << name << " := \n";
+    std::cout << head.name << " := ";
 
-    for (auto rhs : rules) {
-      std::cout << "  | ";
-      for (auto term : rhs) {
-        if (term.kind == TERM)
-          std::cout << term.term.name << " ";
-        else
-          std::cout << term.non_term.name << " ";
-      }
-      std::cout << "\n";
+    for (auto &token : rhs) {
+      std::cout << "(" << token.id << ": " << token.name << ") ";
     }
+    std::cout << "\n";
   }
   std::cout << std::endl;
+}
+
+LLGrammar::LLGrammar(Grammar grammar) {
+  // Generate parsing table
 }
 
 } // namespace grammar

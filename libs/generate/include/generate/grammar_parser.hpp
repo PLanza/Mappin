@@ -40,7 +40,7 @@ public:
   GrammarParser(const char *file_name);
   std::unique_ptr<grammar::Grammar> parseGrammar();
   void parseGrammarDefinition();
-  std::vector<grammar::TermOrNonTerm> parseGrammarRHS();
+  std::vector<grammar::Token> parseGrammarRHS();
 };
 
 #endif

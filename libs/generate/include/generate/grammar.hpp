@@ -3,41 +3,60 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace grammar {
 
-struct Terminal {
-  const char *name;
+// TODO: Associate each unique terminal/non-terminal with a unique ID
+// This should speed up searches and comparisons
+
+enum TokenKind { TERM, NON_TERM };
+
+struct Token {
+  TokenKind kind;
+  unsigned int id;
+  std::string name;
 };
 
-struct NonTerminal {
-  const char *name;
-};
-
-enum TermKind { TERM, NON_TERM };
-
-struct TermOrNonTerm {
-  TermKind kind;
-  union {
-    Terminal term;
-    NonTerminal non_term;
-  };
-};
-
-TermOrNonTerm newTerminal(const char *name);
-TermOrNonTerm newNonTerminal(const char *name);
+typedef std::vector<std::pair<Token, std::vector<Token>>> grammar_rules;
 
 class Grammar {
 public:
   Grammar();
-  void addRule(std::string, std::vector<std::vector<TermOrNonTerm>>, bool);
+
+  Token newToken(TokenKind kind, std::string name);
+  Token newTerminal(std::string name);
+  Token newNonTerminal(std::string name);
+
+  void addRule(std::string, std::vector<Token>, bool);
+
   void print();
 
 private:
-  std::unordered_map<std::string, std::vector<std::vector<TermOrNonTerm>>>
-      rules;
-  std::string start_rule;
+  grammar_rules rules;
+  unsigned int start_rule;
+
+  unsigned int next_term_id;
+  unsigned int next_nonterm_id;
+
+  std::unordered_map<std::string, unsigned int> term_id_map;
+  std::unordered_map<std::string, unsigned int> nonterm_id_map;
+};
+
+enum ParseActionKind { EMPTY, SHIFT, REDUCE };
+
+struct ParseAction {
+  ParseActionKind kind;
+  unsigned int reduce_rule;
+};
+
+class LLGrammar {
+public:
+  LLGrammar(Grammar grammar);
+
+private:
+  ParseAction **makeParseTable(grammar_rules rules);
 };
 
 } // namespace grammar
