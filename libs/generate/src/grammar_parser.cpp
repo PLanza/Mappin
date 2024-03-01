@@ -9,15 +9,6 @@
 
 #include "grammar_parser.hpp"
 
-class UnableToOpenFileException : public MappinException {
-  const char *message() const override { return "Unable to open file."; }
-
-  UnableToOpenFileException(const char *file, Span span, std::string line)
-      : MappinException(file, span, line) {}
-
-  friend class MappinException;
-};
-
 class ExpectedNonTerminalException : public MappinException {
   const char *message() const override {
     return "Expected a lowercase non-terminal on the left hand side of a "
@@ -192,10 +183,12 @@ void GrammarParser::parseGrammarDefinition() {
 
   this->bumpSpace();
 
-  this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule);
+  this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule,
+                         this->pos.line);
   while (this->getChar() == '|') {
     this->bumpAndBumpSpace();
-    this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule);
+    this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule,
+                           this->pos.line);
   }
 }
 

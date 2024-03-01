@@ -44,3 +44,12 @@ const char *MappinException::what() const noexcept {
 }
 
 const char *MappinException::message() const { return "Mappin Exception"; }
+
+const char *UnableToOpenFileException::message() const {
+  return "Unable to open file.";
+}
+
+UnableToOpenFileException::UnableToOpenFileException(const char *file,
+                                                     Span span,
+                                                     std::string line)
+    : MappinException(file, span, line) {}

@@ -1,17 +1,16 @@
 #ifndef __MAPPIN_UTILS__
 #define __MAPPIN_UTILS__
 
+#include <cstddef>
 #include <exception>
 #include <optional>
 #include <string>
 
 struct Position {
   // Line number starting at `1`
-  unsigned int line;
+  std::size_t line;
   // Column number starting at `1`
-  unsigned int column;
-  // Byte-offset from the start of the file, starting at `0`
-  // uint32_t offset;
+  std::size_t column;
 };
 
 struct Span {
@@ -44,6 +43,12 @@ public:
     else
       return new T(file, span, "");
   }
+};
+
+class UnableToOpenFileException : public MappinException {
+  UnableToOpenFileException(const char *file, Span span, std::string line);
+  const char *message() const override;
+  friend class MappinException;
 };
 
 #endif

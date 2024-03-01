@@ -1,13 +1,25 @@
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "grammar.hpp"
+#include "util/util.hpp"
 
 namespace grammar {
+
+class AmbiguousGrammarException : public MappinException {
+  const char *message() const override {
+    return "The following rule makes the grammar ambiguous: ";
+  }
+  AmbiguousGrammarException(const char *file, Span span, std::string line)
+      : MappinException(file, span, line) {}
+  friend MappinException;
+};
 
 Grammar::Grammar()
     : next_nonterm_id(0), next_term_id(2), rules({}),
@@ -36,23 +48,21 @@ Token Grammar::newNonTerminal(std::string name) {
   return {NON_TERM, nonterm_id_map[name], name};
 }
 
-// Inserts a new rule to the grammar
-// If the non-terminal has already been defined, then
-// append the new right hand sides to the existing rule
-void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start) {
+void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
+                      std::size_t line) {
   Token head = this->newNonTerminal(name);
 
   if (start) {
     this->start_rule = head.id;
   }
 
-  this->rules.push_back({head, rhs});
+  this->rules.push_back({head, rhs, line});
 }
 
 ParseAction *Grammar::makeParseTable() { throw new std::bad_function_call(); }
 
 void Grammar::print() {
-  for (const auto &[head, rhs] : this->rules) {
+  for (const auto &[head, rhs, _] : this->rules) {
     if (head.id == this->start_rule)
       std::cout << "$ ";
     std::cout << head.name << " := ";
@@ -65,11 +75,38 @@ void Grammar::print() {
   std::cout << std::endl;
 }
 
+MappinException *Grammar::exceptionOnLine(GrammarExceptionKind kind,
+                                          std::size_t line) {
+  std::ifstream file_stream;
+  file_stream.open(this->file_name);
+
+  std::string grammar_line;
+
+  for (int i = 1; i <= line; i++)
+    std::getline(file_stream, grammar_line);
+
+  Span span = Span{{line, 1}, {line, grammar_line.length()}};
+
+  switch (kind) {
+  case AMBIGUOUS_GRAMMAR:
+    return MappinException::newMappinException<AmbiguousGrammarException>(
+               this->file_name, span, std::optional<std::string>(grammar_line))
+        .value();
+  case UNABLE_TO_OPEN_FILE:
+    return MappinException::newMappinException<UnableToOpenFileException>(
+               this->file_name, {{1, 1}, {1, 1}}, std::nullopt)
+        .value();
+  default:
+    // Should never reach here but makes compiler happy
+    return nullptr;
+  }
+}
+
 LLGrammar::LLGrammar() : Grammar() {}
 
 ParseAction *LLGrammar::makeParseTable() {
-  unsigned int rows = Grammar::next_nonterm_id;
-  unsigned int cols = Grammar::next_term_id;
+  uint32_t rows = Grammar::next_nonterm_id;
+  uint32_t cols = Grammar::next_term_id;
 
   std::cout << "Making a " << rows << " x " << cols << " LL parse table"
             << std::endl;
@@ -84,26 +121,25 @@ ParseAction *LLGrammar::makeParseTable() {
 
   // Initialize first set
   // first 32 bytes are the terminal id, last 32 bytes are the rule index
-  std::unordered_set<unsigned long long> first_set[Grammar::next_nonterm_id];
+  std::unordered_set<uint64_t> first_set[Grammar::next_nonterm_id];
 
   bool not_done;
   do {
     not_done = false;
-    for (unsigned int i = 0; i < Grammar::rules.size(); i++) {
-      const auto &[head, rhs] = Grammar::rules[i];
+    for (uint32_t i = 0; i < Grammar::rules.size(); i++) {
+      const auto &[head, rhs, _] = Grammar::rules[i];
       Token first = rhs[0];
 
       if (first.kind == TERM)
-        not_done |=
-            first_set[head.id]
-                .insert(static_cast<unsigned long long>(first.id) << 32 |
-                        static_cast<unsigned long long>(i))
-                .second;
+        not_done |= first_set[head.id]
+                        .insert(static_cast<uint64_t>(first.id) << 32 |
+                                static_cast<uint64_t>(i))
+                        .second;
       else {
         for (auto &element : first_set[first.id]) {
           not_done |= first_set[head.id]
                           .insert(element & (0xFFFFFFFFull << 32) |
-                                  static_cast<unsigned long long>(i))
+                                  static_cast<uint64_t>(i))
                           .second;
         }
       }
@@ -111,15 +147,16 @@ ParseAction *LLGrammar::makeParseTable() {
   } while (not_done);
 
   // Set REDUCE rules from first set
-  for (unsigned int non_term = 0; non_term < Grammar::next_nonterm_id;
-       non_term++) {
-    for (const unsigned long long &element : first_set[non_term]) {
-      unsigned int term = static_cast<unsigned int>(element >> 32);
+  for (uint32_t non_term = 0; non_term < Grammar::next_nonterm_id; non_term++) {
+    for (const uint64_t &element : first_set[non_term]) {
+      uint32_t term = static_cast<uint32_t>(element >> 32);
+      uint32_t rule = static_cast<uint32_t>(element);
+
       if (parse_table[non_term * cols + term].kind != EMPTY) {
-        // throw ambiguous grammar error
+        throw exceptionOnLine(AMBIGUOUS_GRAMMAR,
+                              std::get<2>(this->rules[rule]));
       }
-      parse_table[non_term * cols + term] = {
-          REDUCE, static_cast<unsigned int>(element)};
+      parse_table[non_term * cols + term] = {REDUCE, rule};
     }
   }
 
