@@ -79,7 +79,7 @@ GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
 
 GrammarParser::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), line_offset(0),
-      grammar(new grammar::Grammar) {
+      grammar(new grammar::LLGrammar) {
   this->grammar_fs.open(this->file_name);
 
   if (this->grammar_fs.is_open())
