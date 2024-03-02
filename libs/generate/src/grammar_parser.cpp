@@ -70,7 +70,7 @@ GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
 
 GrammarParser::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), line_offset(0),
-      grammar(new grammar::LLGrammar) {
+      grammar(new grammar::LLGrammar(file_name)) {
   this->grammar_fs.open(this->file_name);
 
   if (this->grammar_fs.is_open())
@@ -184,11 +184,11 @@ void GrammarParser::parseGrammarDefinition() {
   this->bumpSpace();
 
   this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule,
-                         this->pos.line);
+                         this->pos.line - 1);
   while (this->getChar() == '|') {
     this->bumpAndBumpSpace();
     this->grammar->addRule(def_name, this->parseGrammarRHS(), start_rule,
-                           this->pos.line);
+                           this->pos.line - 1);
   }
 }
 

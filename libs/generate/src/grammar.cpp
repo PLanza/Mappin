@@ -1,5 +1,4 @@
 #include <fstream>
-#include <functional>
 #include <iostream>
 #include <string>
 #include <tuple>
@@ -16,14 +15,16 @@ class AmbiguousGrammarException : public MappinException {
   const char *message() const override {
     return "The following rule makes the grammar ambiguous: ";
   }
+
   AmbiguousGrammarException(const char *file, Span span, std::string line)
       : MappinException(file, span, line) {}
-  friend MappinException;
+
+  friend class MappinException;
 };
 
-Grammar::Grammar()
-    : next_nonterm_id(0), next_term_id(2), rules({}),
-      term_id_map({{"_START_", 0}, {"_END_", 1}}){};
+Grammar::Grammar(const char *file_name)
+    : file_name(file_name), next_nonterm_id(0), next_term_id(2), rules({}),
+      parse_table(nullptr), term_id_map({{"_START_", 0}, {"_END_", 1}}){};
 
 Token Grammar::newToken(TokenKind kind, std::string name) {
   if (kind == TERM)
@@ -59,8 +60,6 @@ void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
   this->rules.push_back({head, rhs, line});
 }
 
-ParseAction *Grammar::makeParseTable() { throw new std::bad_function_call(); }
-
 void Grammar::print() {
   for (const auto &[head, rhs, _] : this->rules) {
     if (head.id == this->start_rule)
@@ -75,26 +74,26 @@ void Grammar::print() {
   std::cout << std::endl;
 }
 
-MappinException *Grammar::exceptionOnLine(GrammarExceptionKind kind,
-                                          std::size_t line) {
+MappinException *exceptionOnLine(GrammarExceptionKind kind,
+                                 const char *file_name, std::size_t line) {
   std::ifstream file_stream;
-  file_stream.open(this->file_name);
+  file_stream.open(file_name);
 
   std::string grammar_line;
 
   for (int i = 1; i <= line; i++)
     std::getline(file_stream, grammar_line);
 
-  Span span = Span{{line, 1}, {line, grammar_line.length()}};
+  Span span = Span{{line, 1}, {line, grammar_line.length() + 1}};
 
   switch (kind) {
   case AMBIGUOUS_GRAMMAR:
     return MappinException::newMappinException<AmbiguousGrammarException>(
-               this->file_name, span, std::optional<std::string>(grammar_line))
+               file_name, span, std::optional<std::string>(grammar_line))
         .value();
   case UNABLE_TO_OPEN_FILE:
     return MappinException::newMappinException<UnableToOpenFileException>(
-               this->file_name, {{1, 1}, {1, 1}}, std::nullopt)
+               file_name, {{1, 1}, {1, 1}}, std::nullopt)
         .value();
   default:
     // Should never reach here but makes compiler happy
@@ -102,32 +101,37 @@ MappinException *Grammar::exceptionOnLine(GrammarExceptionKind kind,
   }
 }
 
-LLGrammar::LLGrammar() : Grammar() {}
+LLGrammar::LLGrammar(const char *file_name) : Grammar(file_name) {}
 
-ParseAction *LLGrammar::makeParseTable() {
-  uint32_t rows = Grammar::next_nonterm_id;
-  uint32_t cols = Grammar::next_term_id;
+void LLGrammar::makeParseTable() {
+  this->parse_table = new LLParseTable(
+      this->next_term_id, this->next_nonterm_id, this->rules, this->file_name);
+  this->parse_table->print();
+}
 
-  std::cout << "Making a " << rows << " x " << cols << " LL parse table"
-            << std::endl;
+LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
+                           grammar_rules &rules, const char *file_name)
+    : rows(nonterminals), cols(terminals) {
+  std::cout << "Making a " << this->rows << " x " << this->cols
+            << " LL parse table" << std::endl;
 
   // Initialize parse table as a contiguous array
-  ParseAction *parse_table = new ParseAction[rows * cols];
-  for (int i = 0; i < rows; i++) {
-    for (int j = 0; j < cols; j++) {
-      parse_table[i * cols + j] = ParseAction{EMPTY, 0};
+  ParseAction *parse_table = new ParseAction[this->rows * this->cols];
+  for (int i = 0; i < this->rows; i++) {
+    for (int j = 0; j < this->cols; j++) {
+      parse_table[i * this->cols + j] = ParseAction{EMPTY, 0};
     }
   }
 
   // Initialize first set
   // first 32 bytes are the terminal id, last 32 bytes are the rule index
-  std::unordered_set<uint64_t> first_set[Grammar::next_nonterm_id];
+  std::unordered_set<uint64_t> first_set[this->rows];
 
   bool not_done;
   do {
     not_done = false;
-    for (uint32_t i = 0; i < Grammar::rules.size(); i++) {
-      const auto &[head, rhs, _] = Grammar::rules[i];
+    for (uint32_t i = 0; i < rules.size(); i++) {
+      const auto &[head, rhs, _] = rules[i];
       Token first = rhs[0];
 
       if (first.kind == TERM)
@@ -147,19 +151,44 @@ ParseAction *LLGrammar::makeParseTable() {
   } while (not_done);
 
   // Set REDUCE rules from first set
-  for (uint32_t non_term = 0; non_term < Grammar::next_nonterm_id; non_term++) {
+  for (uint32_t non_term = 0; non_term < this->rows; non_term++) {
     for (const uint64_t &element : first_set[non_term]) {
       uint32_t term = static_cast<uint32_t>(element >> 32);
       uint32_t rule = static_cast<uint32_t>(element);
 
-      if (parse_table[non_term * cols + term].kind != EMPTY) {
-        throw exceptionOnLine(AMBIGUOUS_GRAMMAR,
-                              std::get<2>(this->rules[rule]));
+      if (parse_table[non_term * this->cols + term].kind != EMPTY) {
+        throw exceptionOnLine(AMBIGUOUS_GRAMMAR, file_name,
+                              std::get<2>(rules[rule]));
       }
-      parse_table[non_term * cols + term] = {REDUCE, rule};
+      parse_table[non_term * this->cols + term] = {REDUCE, rule};
     }
   }
 
-  return parse_table;
+  this->table = parse_table;
 }
+
+void LLParseTable::print() {
+  for (int i = 0; i < this->rows; i++) {
+    for (int j = 0; j < this->cols; j++) {
+      switch (this->table[i * this->cols + j].kind) {
+      case grammar::EMPTY: {
+        std::cout << "   ";
+        break;
+      }
+      case grammar::SHIFT: {
+        std::cout << "S  ";
+        break;
+      }
+      case grammar::REDUCE: {
+        std::cout << "R" << this->table[i * 7 + j].reduce_rule << " ";
+        break;
+      }
+      }
+    }
+    std::cout << std::endl;
+  }
+}
+
+LLParseTable::~LLParseTable() { delete[] this->table; }
+
 } // namespace grammar

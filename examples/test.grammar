@@ -1,6 +1,5 @@
 $a := b c
 b := B b Z
-   | b X
    | X 
 c := C c
    | Y
