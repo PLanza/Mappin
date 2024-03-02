@@ -15,7 +15,7 @@ enum GrammarParserExceptionKind {
   EXPECTED_TERM_NON_TERM
 };
 
-class GrammarParser {
+template <class G> class GrammarParser {
 private:
   const char *file_name;
   std::ifstream grammar_fs;

@@ -14,6 +14,7 @@ set(SOURCE_DIR
 set(SOURCE
     ${SOURCE_DIR}/grammar_parser.cpp
     ${SOURCE_DIR}/grammar.cpp
+    ${SOURCE_DIR}/llgrammar.cpp
 )
 
 set(HEADERS_DIR
@@ -22,6 +23,7 @@ set(HEADERS_DIR
 set(HEADERS
   ${HEADERS_DIR}/grammar_parser.hpp
   ${HEADERS_DIR}/grammar.hpp
+  ${HEADERS_DIR}/grammar/llgrammar.hpp
 )
 
 set(LIBRARIES

@@ -1,12 +1,9 @@
 #include <cctype>
 #include <cstring>
-#include <fstream>
 #include <iostream>
-#include <memory>
-#include <string>
 #include <utility>
-#include <vector>
 
+#include "grammar/llgrammar.hpp"
 #include "grammar_parser.hpp"
 
 class ExpectedNonTerminalException : public MappinException {
@@ -33,8 +30,9 @@ class ExpectedTermNonTermException : public MappinException {
   friend class MappinException;
 };
 
-MappinException *GrammarParser::exceptionAtSpan(GrammarParserExceptionKind kind,
-                                                Span span) {
+template <class G>
+MappinException *
+GrammarParser<G>::exceptionAtSpan(GrammarParserExceptionKind kind, Span span) {
   switch (kind) {
   case EXPECTED_NON_TERM:
     return MappinException::newMappinException<ExpectedNonTerminalException>(
@@ -58,19 +56,22 @@ MappinException *GrammarParser::exceptionAtSpan(GrammarParserExceptionKind kind,
   }
 }
 
+template <class G>
 MappinException *
-GrammarParser::exceptionAtParserHead(GrammarParserExceptionKind kind) {
+GrammarParser<G>::exceptionAtParserHead(GrammarParserExceptionKind kind) {
   return this->exceptionAtSpan(kind, {this->pos, this->pos});
 }
 
+template <class G>
 MappinException *
-GrammarParser::exceptionFromLineStart(GrammarParserExceptionKind kind) {
+GrammarParser<G>::exceptionFromLineStart(GrammarParserExceptionKind kind) {
   return this->exceptionAtSpan(kind, {{this->pos.line, 1}, this->pos});
 }
 
-GrammarParser::GrammarParser(const char *file_name)
+template <class G>
+GrammarParser<G>::GrammarParser(const char *file_name)
     : file_name(file_name), pos({1, 0}), line_offset(0),
-      grammar(new grammar::LLGrammar(file_name)) {
+      grammar(new G(file_name)) {
   this->grammar_fs.open(this->file_name);
 
   if (this->grammar_fs.is_open())
@@ -79,20 +80,23 @@ GrammarParser::GrammarParser(const char *file_name)
     throw this->exceptionAtParserHead(UNABLE_TO_OPEN_FILE);
 };
 
-bool GrammarParser::eof() { return this->grammar_fs.eof(); }
-bool GrammarParser::endOfLine() {
+template <class G> bool GrammarParser<G>::eof() {
+  return this->grammar_fs.eof();
+}
+
+template <class G> bool GrammarParser<G>::endOfLine() {
   return this->curr_line.empty() ||
          this->line_offset >= this->curr_line.length() - 1;
 }
 
 // Get the character at the parser head
-char GrammarParser::getChar() {
+template <class G> char GrammarParser<G>::getChar() {
   return (this->curr_line.empty()) ? '\n' : this->curr_line[line_offset];
 }
 
 // Bump the parser head to the next character
 // If the EOF is reached, then `false` is returned
-bool GrammarParser::bump() {
+template <class G> bool GrammarParser<G>::bump() {
   if (this->eof())
     return false;
   if (this->endOfLine()) {
@@ -111,7 +115,7 @@ bool GrammarParser::bump() {
 
 // Bumps the parser head until a non-space character is reached
 // If a new line is bumber, then `true` is returned
-bool GrammarParser::bumpSpace() {
+template <class G> bool GrammarParser<G>::bumpSpace() {
   bool new_line = false;
 
   while (!this->eof()) {
@@ -129,7 +133,7 @@ bool GrammarParser::bumpSpace() {
 
 // Bumps the parser and also any subsequent space
 // If the EOF is reached, the `false` is returned
-bool GrammarParser::bumpAndBumpSpace() {
+template <class G> bool GrammarParser<G>::bumpAndBumpSpace() {
   if (!this->bump())
     return false;
 
@@ -139,7 +143,7 @@ bool GrammarParser::bumpAndBumpSpace() {
 
 // Bump the parser head past `prefix``, if parser head points to `prefix`
 // If parser head does not point to `prefix` then return false
-bool GrammarParser::bumpIf(const char *prefix) {
+template <class G> bool GrammarParser<G>::bumpIf(const char *prefix) {
   if (this->curr_line.find(prefix, this->line_offset) == this->line_offset) {
     for (int i = 0; i < strlen(prefix); i++) {
       this->bump();
@@ -149,7 +153,8 @@ bool GrammarParser::bumpIf(const char *prefix) {
     return false;
 }
 
-std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
+template <class G>
+std::unique_ptr<grammar::Grammar> GrammarParser<G>::parseGrammar() {
   std::cout << "Parsing Grammar file " << this->file_name << std::endl;
 
   while (!this->eof()) {
@@ -163,7 +168,7 @@ std::unique_ptr<grammar::Grammar> GrammarParser::parseGrammar() {
 // Parses an instance of a grammar definition. For example:
 //  a := b c
 //     | A
-void GrammarParser::parseGrammarDefinition() {
+template <class G> void GrammarParser<G>::parseGrammarDefinition() {
   std::string def_name = "";
   bool start_rule = false;
 
@@ -194,7 +199,8 @@ void GrammarParser::parseGrammarDefinition() {
 
 // Parses the right hand side of a grammar definition.
 // E.g. `b c` in `a := b c`
-std::vector<grammar::Token> GrammarParser::parseGrammarRHS() {
+template <class G>
+std::vector<grammar::Token> GrammarParser<G>::parseGrammarRHS() {
   std::vector<grammar::Token> right_hand_side;
 
   uint32_t line = this->pos.line;
@@ -222,3 +228,5 @@ std::vector<grammar::Token> GrammarParser::parseGrammarRHS() {
 
   return right_hand_side;
 }
+
+template class GrammarParser<grammar::LLGrammar>;
