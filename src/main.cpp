@@ -9,6 +9,9 @@ int main() {
     g->printGrammar();
     g->makeParseTable();
     g->printParseTable();
+    g->generateStackActions();
+    g->printStackActions();
+
   } catch (MappinException *e) {
     std::cerr << e->what() << std::endl;
   }

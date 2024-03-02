@@ -24,9 +24,9 @@ class AmbiguousGrammarException : public MappinException {
 };
 
 Grammar::Grammar(const char *file_name)
-    : file_name(file_name), rules({}), parse_table(nullptr), lock(false),
-      nonterms_size(0), terminals(nullptr), nonterminals(nullptr),
-      nonterm_id_map({}) {
+    : file_name(file_name), rules({}), parse_table(nullptr),
+      stack_actions(nullptr), lock(false), nonterms_size(0), terminals(nullptr),
+      nonterminals(nullptr), nonterm_id_map({}) {
   this->terms_size = 0;
   this->term_id_map = {};
 
@@ -67,9 +67,8 @@ void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
 
   Token head = this->newNonTerminal(name);
 
-  if (start) {
+  if (start)
     this->start_rule = head.id;
-  }
 
   this->rules.push_back({head, rhs, line});
 }
@@ -86,6 +85,52 @@ void Grammar::printGrammar() {
     std::cout << "\n";
   }
   std::cout << std::endl;
+}
+
+void Grammar::printToken(Token token) {
+  switch (token.kind) {
+  case TERM: {
+    std::cout << this->terminals[token.id];
+    break;
+  }
+  case NON_TERM: {
+    std::cout << this->nonterminals[token.id];
+    break;
+  }
+  case ANY: {
+    std::cout << "_";
+    break;
+  }
+  case REST: {
+    std::cout << "-";
+    break;
+  }
+  }
+}
+
+void Grammar::printStackActions() {
+  if (!this->stack_actions) {
+    std::cerr
+        << "ERROR: Attempted to print stack actions before they were generated"
+        << std::endl;
+    return;
+  }
+
+  for (uint32_t i = 0; i < this->terms_size; i++) {
+    printf("%8s : ", this->terminals[i].c_str());
+
+    for (const auto &stack_action : stack_actions[i]) {
+      for (const grammar::Token &token : stack_action.lhs) {
+        this->printToken(token);
+      }
+      std::cout << "/";
+      for (const grammar::Token &token : stack_action.rhs) {
+        this->printToken(token);
+      }
+      std::cout << "  ";
+    }
+    std::cout << std::endl;
+  }
 }
 
 void Grammar::lockGrammar() {
@@ -132,21 +177,21 @@ void LLGrammar::makeParseTable() {
                                        this->rules, this->file_name);
 }
 
-std::vector<StackAction> *LLGrammar::generateStackActions() {
-  std::vector<StackAction> *stack_actions =
-      new std::vector<StackAction>[this->terms_size];
+void LLGrammar::generateStackActions() {
+  this->stack_actions = new std::vector<StackAction>[this->terms_size];
 
   // _START_ => /A
-  stack_actions[0].push_back(
+  this->printToken(std::get<0>(this->rules[start_rule]));
+  this->stack_actions[0].push_back(
       StackAction{{}, {std::get<0>(this->rules[start_rule])}});
 
   // _END_ => -/
-  stack_actions[1].push_back(StackAction{{ANY_TOKEN}, {}});
+  this->stack_actions[1].push_back(StackAction{{REST_TOKEN}, {}});
 
   // SHIFT rules
   for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
-    stack_actions[t_id].push_back(StackAction{
-        {Token{TERM, t_id, this->terminals[t_id]}, ANY_TOKEN}, {ANY_TOKEN}});
+    this->stack_actions[t_id].push_back(StackAction{
+        {Token{TERM, t_id, this->terminals[t_id]}, REST_TOKEN}, {REST_TOKEN}});
   }
 
   // REDUCE rules
@@ -161,17 +206,15 @@ std::vector<StackAction> *LLGrammar::generateStackActions() {
       case REDUCE: {
         std::vector<Token> right_stack =
             this->findTerminal(t_id, action.reduce_rule);
-        right_stack.push_back(ANY_TOKEN);
-        stack_actions[t_id].push_back(StackAction{
-            {Token{NON_TERM, nt_id, this->nonterminals[nt_id]}, ANY_TOKEN},
+        right_stack.push_back(REST_TOKEN);
+        this->stack_actions[t_id].push_back(StackAction{
+            {Token{NON_TERM, nt_id, this->nonterminals[nt_id]}, REST_TOKEN},
             right_stack});
         break;
       }
       }
     }
   }
-
-  return stack_actions;
 }
 
 std::vector<Token> LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
@@ -219,7 +262,8 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
   }
 
   // Initialize first set
-  // first 32 bytes are the terminal id, last 32 bytes are the rule index
+  // first 32 bytes are the terminal id, last 32 bytes are the rule
+  // index
   std::unordered_set<uint64_t> first_set[this->rows];
 
   bool not_done;
@@ -264,7 +308,8 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
 
 void LLGrammar::printParseTable() {
   if (!this->lock) {
-    std::cerr << "ERROR: Attempted to print parse table before it was made."
+    std::cerr << "ERROR: Attempted to print parse table before it "
+                 "was made."
               << std::endl;
     return;
   }

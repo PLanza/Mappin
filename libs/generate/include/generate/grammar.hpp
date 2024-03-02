@@ -19,6 +19,7 @@ struct Token {
 };
 
 const Token ANY_TOKEN = Token{ANY, 0, ""};
+const Token REST_TOKEN = Token{REST, 0, ""};
 
 enum ParseActionKind { EMPTY, SHIFT, REDUCE };
 
@@ -58,10 +59,12 @@ public:
 
   void addRule(std::string, std::vector<Token>, bool, std::size_t);
   virtual void makeParseTable() = 0;
-  virtual std::vector<StackAction> *generateStackActions() = 0;
+  virtual void generateStackActions() = 0;
 
   void printGrammar();
+  void printToken(Token token);
   virtual void printParseTable() = 0;
+  void printStackActions();
 
 protected:
   Grammar(const char *);
@@ -80,6 +83,7 @@ protected:
   grammar_rules rules;
   // TODO: change to unique pointer
   ParseTable *parse_table;
+  std::vector<StackAction> *stack_actions;
 
   bool lock;
 
@@ -105,7 +109,7 @@ class LLGrammar : public Grammar {
 public:
   LLGrammar(const char *);
   void makeParseTable() override;
-  std::vector<StackAction> *generateStackActions() override;
+  void generateStackActions() override;
   void printParseTable() override;
 
 private:
