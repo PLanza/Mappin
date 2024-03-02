@@ -19,7 +19,7 @@ class AmbiguousGrammarException : public MappinException {
 
 Grammar::Grammar(const char *file_name)
     : file_name(file_name), rules({}), parse_table(nullptr),
-      stack_actions(nullptr), lock(false), nonterms_size(0), terminals(nullptr),
+      stack_actions(nullptr), nonterms_size(0), terminals(nullptr),
       nonterminals(nullptr), nonterm_id_map({}) {
   this->terms_size = 0;
   this->term_id_map = {};
@@ -29,6 +29,11 @@ Grammar::Grammar(const char *file_name)
 }
 
 Token Grammar::newToken(TokenKind kind, std::string name) {
+  if (this->parse_table != nullptr) {
+    std::cerr << "ERROR: Attempted to add token to grammar after it was locked."
+              << std::endl;
+  }
+
   if (kind == TERM)
     return this->newTerminal(name);
   else
@@ -53,7 +58,7 @@ Token Grammar::newNonTerminal(std::string name) {
 
 void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
                       std::size_t line) {
-  if (this->lock) {
+  if (this->parse_table != nullptr) {
     std::cerr << "ERROR: Attempted to add rule to grammar after it was locked."
               << std::endl;
     return;
@@ -103,7 +108,7 @@ void Grammar::printToken(Token token) {
 }
 
 void Grammar::printStackActions() {
-  if (!this->stack_actions) {
+  if (this->stack_actions == nullptr) {
     std::cerr
         << "ERROR: Attempted to print stack actions before they were generated"
         << std::endl;
@@ -121,15 +126,23 @@ void Grammar::printStackActions() {
       for (const grammar::Token &token : stack_action.rhs) {
         this->printToken(token);
       }
-      std::cout << "  ";
+
+      if (stack_action.reduce_rules.empty())
+        continue;
+
+      std::cout << " (";
+      for (int j = 0; j < stack_action.reduce_rules.size(); j++) {
+        std::cout << stack_action.reduce_rules[j];
+        if (j < stack_action.reduce_rules.size() - 1)
+          std::cout << ",";
+      }
+      std::cout << ")  ";
     }
     std::cout << std::endl;
   }
 }
 
-void Grammar::lockGrammar() {
-  this->lock = true;
-
+void Grammar::fillStringArrays() {
   this->terminals = new std::string[this->terms_size];
   for (const auto &[name, t_id] : this->term_id_map)
     this->terminals[t_id] = name;

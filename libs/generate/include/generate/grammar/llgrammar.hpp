@@ -2,6 +2,7 @@
 #define __MAPPIN_GEN_LLGRAMMAR__
 
 #include "../grammar.hpp"
+#include <utility>
 
 namespace grammar {
 
@@ -26,7 +27,8 @@ public:
   void printParseTable() override;
 
 private:
-  std::vector<Token> findTerminal(uint32_t, uint32_t);
+  std::pair<std::vector<Token>, std::vector<uint32_t>> findTerminal(uint32_t,
+                                                                    uint32_t);
 };
 } // namespace grammar
 #endif

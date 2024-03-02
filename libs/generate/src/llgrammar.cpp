@@ -2,31 +2,41 @@
 
 #include <iostream>
 #include <unordered_set>
+#include <utility>
 
 namespace grammar {
 LLGrammar::LLGrammar(const char *file_name) : Grammar(file_name) {}
 
 void LLGrammar::makeParseTable() {
-  this->lockGrammar();
+  this->fillStringArrays();
 
   this->parse_table = new LLParseTable(this->terms_size, this->nonterms_size,
                                        this->rules, this->file_name);
 }
 
 void LLGrammar::generateStackActions() {
+  if (this->parse_table == nullptr) {
+    std::cerr
+        << "ERROR: Attempted to generate stack actions before the parse table"
+        << std::endl;
+    return;
+  }
+
   this->stack_actions = new std::vector<StackAction>[this->terms_size];
 
   // '<' => /A
   this->stack_actions[0].push_back(
-      StackAction{{}, {std::get<0>(this->rules[start_rule])}});
+      StackAction{{}, {std::get<0>(this->rules[start_rule])}, {}});
 
   // '>' => -/
-  this->stack_actions[1].push_back(StackAction{{REST_TOKEN}, {}});
+  this->stack_actions[1].push_back(StackAction{{REST_TOKEN}, {}, {}});
 
   // SHIFT rules
   for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
-    this->stack_actions[t_id].push_back(StackAction{
-        {Token{TERM, t_id, this->terminals[t_id]}, REST_TOKEN}, {REST_TOKEN}});
+    this->stack_actions[t_id].push_back(
+        StackAction{{Token{TERM, t_id, this->terminals[t_id]}, REST_TOKEN},
+                    {REST_TOKEN},
+                    {}});
   }
 
   // REDUCE rules
@@ -39,12 +49,14 @@ void LLGrammar::generateStackActions() {
         // Shouldn't reach here for LL Grammar
         break;
       case REDUCE: {
-        std::vector<Token> right_stack =
+        auto [right_stack, reduce_rules] =
             this->findTerminal(t_id, action.reduce_rule);
+
         right_stack.push_back(REST_TOKEN);
         this->stack_actions[t_id].push_back(StackAction{
             {Token{NON_TERM, nt_id, this->nonterminals[nt_id]}, REST_TOKEN},
-            right_stack});
+            right_stack,
+            reduce_rules});
         break;
       }
       }
@@ -52,27 +64,31 @@ void LLGrammar::generateStackActions() {
   }
 }
 
-std::vector<Token> LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
+std::pair<std::vector<Token>, std::vector<uint32_t>>
+LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
   std::vector<Token> rhs = std::get<1>(this->rules[rule]);
   Token first = rhs[0];
 
   switch (first.kind) {
   case (TERM): {
     if (term_id == first.id)
-      return {rhs.begin() + 1, rhs.end()};
+      return {{rhs.begin() + 1, rhs.end()}, {rule}};
     else {
       std::cerr << "error: got wrong terminal \'" << this->terminals[term_id]
                 << "\' when generating stack actions\n"
                 << "Probably a problem with the parse table." << std::endl;
-      return {};
+      return {{}, {}};
     }
   }
   case (NON_TERM): {
     uint32_t next_rule =
         this->parse_table->getAction(first.id, term_id).reduce_rule;
-    std::vector<Token> prefix = this->findTerminal(term_id, next_rule);
-    prefix.insert(prefix.end(), rhs.begin() + 1, rhs.end());
-    return prefix;
+
+    auto [stack_prefix, reduce_rules] = this->findTerminal(term_id, next_rule);
+    stack_prefix.insert(stack_prefix.end(), rhs.begin() + 1, rhs.end());
+    reduce_rules.insert(reduce_rules.begin(), rule);
+
+    return {stack_prefix, reduce_rules};
   }
   default:
     // Should never arrive here
@@ -114,9 +130,9 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
                                 static_cast<uint64_t>(i))
                         .second;
       else {
-        for (auto &element : first_set[first.id]) {
+        for (const uint64_t &element : first_set[first.id]) {
           not_done |= first_set[head.id]
-                          .insert(element & (0xFFFFFFFFull << 32) |
+                          .insert(element & (uint64_t(0xFFFFFFFF) << 32) |
                                   static_cast<uint64_t>(i))
                           .second;
         }
@@ -142,7 +158,7 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
 }
 
 void LLGrammar::printParseTable() {
-  if (!this->lock) {
+  if (this->parse_table == nullptr) {
     std::cerr << "ERROR: Attempted to print parse table before it "
                  "was made."
               << std::endl;
