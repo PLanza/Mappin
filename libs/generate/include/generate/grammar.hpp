@@ -18,11 +18,14 @@ struct Token {
   std::string name;
 };
 
+const Token ANY_TOKEN = Token{ANY, 0, ""};
+
 enum ParseActionKind { EMPTY, SHIFT, REDUCE };
 
 struct ParseAction {
   ParseActionKind kind;
-  unsigned int reduce_rule; // points to a rule in the grammar vector
+  // TODO: change to optional
+  uint32_t reduce_rule; // points to a rule in the grammar vector
 };
 
 struct StackAction {
@@ -32,14 +35,17 @@ struct StackAction {
 
 class ParseTable {
 public:
-  // virtual StackAction *generateStackActions() = 0;
-  virtual void print() = 0;
+  virtual ParseAction getAction(uint32_t, uint32_t) = 0;
 };
 
+// line l: a -> A b c
+// => (a, [A, b, c], l)
 typedef std::vector<std::tuple<Token, std::vector<Token>, std::size_t>>
     grammar_rules;
 
-enum GrammarExceptionKind { AMBIGUOUS_GRAMMAR, UNABLE_TO_OPEN_FILE };
+enum GrammarExceptionKind {
+  AMBIGUOUS_GRAMMAR,
+};
 
 MappinException *exceptionOnLine(GrammarExceptionKind, const char *,
                                  std::size_t);
@@ -52,23 +58,32 @@ public:
 
   void addRule(std::string, std::vector<Token>, bool, std::size_t);
   virtual void makeParseTable() = 0;
+  virtual std::vector<StackAction> *generateStackActions() = 0;
 
-  void print();
+  void printGrammar();
+  virtual void printParseTable() = 0;
 
 protected:
   Grammar(const char *);
+  void lockGrammar();
 
   const char *file_name;
+  uint32_t start_rule;
 
-  uint32_t next_term_id;
-  uint32_t next_nonterm_id;
+  uint32_t terms_size;
+  uint32_t nonterms_size;
+
+  // TODO: change to unique pointers
+  std::string *terminals;
+  std::string *nonterminals;
 
   grammar_rules rules;
+  // TODO: change to unique pointer
   ParseTable *parse_table;
 
-private:
-  unsigned int start_rule;
+  bool lock;
 
+private:
   std::unordered_map<std::string, uint32_t> term_id_map;
   std::unordered_map<std::string, uint32_t> nonterm_id_map;
 };
@@ -78,8 +93,7 @@ public:
   LLParseTable(uint32_t, uint32_t, grammar_rules &, const char *);
   ~LLParseTable();
 
-  // StackAction *generateStackActions() override;
-  void print() override;
+  ParseAction getAction(uint32_t, uint32_t) override;
 
 private:
   ParseAction *table;
@@ -91,6 +105,11 @@ class LLGrammar : public Grammar {
 public:
   LLGrammar(const char *);
   void makeParseTable() override;
+  std::vector<StackAction> *generateStackActions() override;
+  void printParseTable() override;
+
+private:
+  std::vector<Token> findTerminal(uint32_t, uint32_t);
 };
 
 } // namespace grammar

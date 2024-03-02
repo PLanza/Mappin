@@ -6,8 +6,9 @@ int main() {
   try {
     GrammarParser g_parser("examples/test.grammar");
     std::unique_ptr<grammar::Grammar> g = g_parser.parseGrammar();
-    g->print();
+    g->printGrammar();
     g->makeParseTable();
+    g->printParseTable();
   } catch (MappinException *e) {
     std::cerr << e->what() << std::endl;
   }

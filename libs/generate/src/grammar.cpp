@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -23,8 +24,15 @@ class AmbiguousGrammarException : public MappinException {
 };
 
 Grammar::Grammar(const char *file_name)
-    : file_name(file_name), next_nonterm_id(0), next_term_id(2), rules({}),
-      parse_table(nullptr), term_id_map({{"_START_", 0}, {"_END_", 1}}){};
+    : file_name(file_name), rules({}), parse_table(nullptr), lock(false),
+      nonterms_size(0), terminals(nullptr), nonterminals(nullptr),
+      nonterm_id_map({}) {
+  this->terms_size = 0;
+  this->term_id_map = {};
+
+  this->newTerminal("_START_");
+  this->newTerminal("_END_");
+}
 
 Token Grammar::newToken(TokenKind kind, std::string name) {
   if (kind == TERM)
@@ -36,7 +44,7 @@ Token Grammar::newToken(TokenKind kind, std::string name) {
 Token Grammar::newTerminal(std::string name) {
   if (auto id_index = this->term_id_map.find(name);
       id_index == this->term_id_map.end()) {
-    term_id_map[name] = this->next_term_id++;
+    term_id_map[name] = this->terms_size++;
   }
   return {TERM, term_id_map[name], name};
 }
@@ -44,13 +52,19 @@ Token Grammar::newTerminal(std::string name) {
 Token Grammar::newNonTerminal(std::string name) {
   if (auto id_index = this->nonterm_id_map.find(name);
       id_index == this->nonterm_id_map.end()) {
-    nonterm_id_map[name] = this->next_nonterm_id++;
+    nonterm_id_map[name] = this->nonterms_size++;
   }
   return {NON_TERM, nonterm_id_map[name], name};
 }
 
 void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
                       std::size_t line) {
+  if (this->lock) {
+    std::cerr << "ERROR: Attempted to add rule to grammar after it was locked."
+              << std::endl;
+    return;
+  }
+
   Token head = this->newNonTerminal(name);
 
   if (start) {
@@ -60,7 +74,7 @@ void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
   this->rules.push_back({head, rhs, line});
 }
 
-void Grammar::print() {
+void Grammar::printGrammar() {
   for (const auto &[head, rhs, _] : this->rules) {
     if (head.id == this->start_rule)
       std::cout << "$ ";
@@ -72,6 +86,18 @@ void Grammar::print() {
     std::cout << "\n";
   }
   std::cout << std::endl;
+}
+
+void Grammar::lockGrammar() {
+  this->lock = true;
+
+  this->terminals = new std::string[this->terms_size];
+  for (const auto &[name, t_id] : this->term_id_map)
+    this->terminals[t_id] = name;
+
+  this->nonterminals = new std::string[this->nonterms_size];
+  for (const auto &[name, nt_id] : this->nonterm_id_map)
+    this->nonterminals[nt_id] = name;
 }
 
 MappinException *exceptionOnLine(GrammarExceptionKind kind,
@@ -91,10 +117,6 @@ MappinException *exceptionOnLine(GrammarExceptionKind kind,
     return MappinException::newMappinException<AmbiguousGrammarException>(
                file_name, span, std::optional<std::string>(grammar_line))
         .value();
-  case UNABLE_TO_OPEN_FILE:
-    return MappinException::newMappinException<UnableToOpenFileException>(
-               file_name, {{1, 1}, {1, 1}}, std::nullopt)
-        .value();
   default:
     // Should never reach here but makes compiler happy
     return nullptr;
@@ -104,9 +126,82 @@ MappinException *exceptionOnLine(GrammarExceptionKind kind,
 LLGrammar::LLGrammar(const char *file_name) : Grammar(file_name) {}
 
 void LLGrammar::makeParseTable() {
-  this->parse_table = new LLParseTable(
-      this->next_term_id, this->next_nonterm_id, this->rules, this->file_name);
-  this->parse_table->print();
+  this->lockGrammar();
+
+  this->parse_table = new LLParseTable(this->terms_size, this->nonterms_size,
+                                       this->rules, this->file_name);
+}
+
+std::vector<StackAction> *LLGrammar::generateStackActions() {
+  std::vector<StackAction> *stack_actions =
+      new std::vector<StackAction>[this->terms_size];
+
+  // _START_ => /A
+  stack_actions[0].push_back(
+      StackAction{{}, {std::get<0>(this->rules[start_rule])}});
+
+  // _END_ => -/
+  stack_actions[1].push_back(StackAction{{ANY_TOKEN}, {}});
+
+  // SHIFT rules
+  for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
+    stack_actions[t_id].push_back(StackAction{
+        {Token{TERM, t_id, this->terminals[t_id]}, ANY_TOKEN}, {ANY_TOKEN}});
+  }
+
+  // REDUCE rules
+  for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
+    for (uint32_t nt_id = 0; nt_id < this->nonterms_size; nt_id++) {
+      ParseAction action = this->parse_table->getAction(nt_id, t_id);
+      switch (action.kind) {
+      case EMPTY:
+      case SHIFT:
+        // Shouldn't reach here for LL Grammar
+        break;
+      case REDUCE: {
+        std::vector<Token> right_stack =
+            this->findTerminal(t_id, action.reduce_rule);
+        right_stack.push_back(ANY_TOKEN);
+        stack_actions[t_id].push_back(StackAction{
+            {Token{NON_TERM, nt_id, this->nonterminals[nt_id]}, ANY_TOKEN},
+            right_stack});
+        break;
+      }
+      }
+    }
+  }
+
+  return stack_actions;
+}
+
+std::vector<Token> LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
+  std::vector<Token> rhs = std::get<1>(this->rules[rule]);
+  Token first = rhs[0];
+
+  switch (first.kind) {
+  case (TERM): {
+    if (term_id == first.id)
+      return {rhs.begin() + 1, rhs.end()};
+    else {
+      std::cerr << "error: got wrong terminal \'" << this->terminals[term_id]
+                << "\' when generating stack actions\n"
+                << "Probably a problem with the parse table." << std::endl;
+      return {};
+    }
+  }
+  case (NON_TERM): {
+    uint32_t next_rule =
+        this->parse_table->getAction(first.id, term_id).reduce_rule;
+    std::vector<Token> prefix = this->findTerminal(term_id, next_rule);
+    prefix.insert(prefix.begin(), rhs.begin() + 1, rhs.end());
+    return prefix;
+  }
+  default:
+    // Should never arrive here
+    std::cerr << "error finding terminal \'" << this->terminals[term_id]
+              << "\' when generating stack actions" << std::endl;
+    return {};
+  }
 }
 
 LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
@@ -167,26 +262,47 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
   this->table = parse_table;
 }
 
-void LLParseTable::print() {
-  for (int i = 0; i < this->rows; i++) {
-    for (int j = 0; j < this->cols; j++) {
-      switch (this->table[i * this->cols + j].kind) {
+void LLGrammar::printParseTable() {
+  if (!this->lock) {
+    std::cerr << "ERROR: Attempted to print parse table before it was made."
+              << std::endl;
+    return;
+  }
+  // Top row
+  printf("%10s |", "");
+  for (int t_id = 0; t_id < this->terms_size; t_id++)
+    printf("%-8s ", this->terminals[t_id].c_str());
+
+  std::cout << std::endl;
+  for (int i = 0; i < 12 + 9 * this->terms_size; i++)
+    std::cout << "-";
+  std::cout << std::endl;
+
+  for (int nt_id = 0; nt_id < this->nonterms_size; nt_id++) {
+    printf("%10s |", this->nonterminals[nt_id].c_str());
+    for (int t_id = 0; t_id < this->terms_size; t_id++) {
+      ParseAction action = this->parse_table->getAction(nt_id, t_id);
+      switch (action.kind) {
       case grammar::EMPTY: {
-        std::cout << "   ";
+        std::cout << "         ";
         break;
       }
       case grammar::SHIFT: {
-        std::cout << "S  ";
+        std::cout << "S        ";
         break;
       }
       case grammar::REDUCE: {
-        std::cout << "R" << this->table[i * 7 + j].reduce_rule << " ";
+        std::cout << "R" << action.reduce_rule << "       ";
         break;
       }
       }
     }
     std::cout << std::endl;
   }
+}
+
+ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) {
+  return this->table[nonterm * this->cols + term];
 }
 
 LLParseTable::~LLParseTable() { delete[] this->table; }
