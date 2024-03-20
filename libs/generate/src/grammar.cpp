@@ -73,9 +73,12 @@ void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
 }
 
 void Grammar::printGrammar() {
-  for (const auto &[head, rhs, _] : this->rules) {
-    if (head.id == this->start_rule)
+  for (uint32_t i = 0; i < this->rules.size(); i++) {
+    const auto &[head, rhs, _] = this->rules[i];
+
+    if (i == this->start_rule)
       std::cout << "$ ";
+
     std::cout << head.name << " := ";
 
     for (auto &token : rhs) {

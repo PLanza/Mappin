@@ -21,6 +21,7 @@ void LLGrammar::generateStackActions() {
         << std::endl;
     return;
   }
+  std::cout << "Generating stack actions for LL Grammar" << std::endl;
 
   this->stack_actions = new std::vector<StackAction>[this->terms_size];
 
@@ -101,8 +102,7 @@ LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
 LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
                            grammar_rules &rules, const char *file_name)
     : rows(nonterminals), cols(terminals) {
-  std::cout << "Making a " << this->rows << " x " << this->cols
-            << " LL parse table" << std::endl;
+  std::cout << "Making LL Grammar parse table" << std::endl;
 
   // Initialize parse table as a contiguous array
   ParseAction *parse_table = new ParseAction[this->rows * this->cols];
@@ -165,18 +165,18 @@ void LLGrammar::printParseTable() {
     return;
   }
   // Top row
-  printf("%10s |", "");
-  for (int t_id = 0; t_id < this->terms_size; t_id++)
+  printf("%10s | ", "");
+  for (int t_id = 2; t_id < this->terms_size; t_id++)
     printf("%-8s ", this->terminals[t_id].c_str());
 
   std::cout << std::endl;
-  for (int i = 0; i < 12 + 9 * this->terms_size; i++)
+  for (int i = 0; i < 13 + 9 * (this->terms_size - 2); i++)
     std::cout << "-";
   std::cout << std::endl;
 
   for (int nt_id = 0; nt_id < this->nonterms_size; nt_id++) {
-    printf("%10s |", this->nonterminals[nt_id].c_str());
-    for (int t_id = 0; t_id < this->terms_size; t_id++) {
+    printf("%10s | ", this->nonterminals[nt_id].c_str());
+    for (int t_id = 2; t_id < this->terms_size; t_id++) {
       ParseAction action = this->parse_table->getAction(nt_id, t_id);
       switch (action.kind) {
       case grammar::EMPTY: {
@@ -195,6 +195,7 @@ void LLGrammar::printParseTable() {
     }
     std::cout << std::endl;
   }
+  std::cout << std::endl;
 }
 
 ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) {

@@ -1,6 +1,8 @@
 #include <generate/grammar/llgrammar.hpp>
 #include <generate/grammar_parser.hpp>
 #include <iostream>
+#include <parse/parse_net.hpp>
+#include <parse/inet.hpp>
 #include <util/util.hpp>
 
 int main() {
@@ -16,5 +18,11 @@ int main() {
   } catch (MappinException *e) {
     std::cerr << e->what() << std::endl;
   }
+
+  inet::init();
+  while (!inet::interactions.empty()){
+    inet::interact();
+  }
+  
   return 0;
 };
