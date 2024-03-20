@@ -36,7 +36,7 @@ enum Group { ACTIVE_PAIR, VARS, NEW_NODES };
 
 struct Connect {
   Group group;
-  size_t index;
+  size_t node;
   size_t port;
 };
 

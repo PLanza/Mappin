@@ -18,7 +18,7 @@ typedef struct {
 } Interaction;
 
 extern std::queue<Interaction> interactions;
-extern std::vector<Action> **actions_map;
+extern std::vector<Action> *actions_map;
 
 void init();
 }

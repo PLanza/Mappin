@@ -11,9 +11,10 @@ namespace inet {
 const uint32_t MAX_NEW_NODES = 5;
 
 Node *newNode(node_kind kind) {
-  Port *ports = (Port *) calloc(node_arities[kind] + 1,  sizeof(Port));
-  Node *node = (Node *) malloc(sizeof(Node));
+  Node *node = new Node;
+  node->kind = kind;
 
+  Port *ports = new Port[node_arities[kind]+ 1];
   node->ports = ports;
   return node;
 }
@@ -46,37 +47,23 @@ Action::Action(bool node): kind(FREE) {
 void interact() {
   Interaction interaction = interactions.front();
   interactions.pop();
-  Node *n1 = interaction.n1;
-  Node *n2 = interaction.n2;
+  Node *left = interaction.n1;
+  Node *right = interaction.n2;
 
-  std::vector<Action> actions = actions_map[n1->kind][n2->kind];
+  std::vector<Action> actions = actions_map[left->kind*NODE_KINDS + right->kind];
+  if (actions.empty())
+    return;
   size_t next_action = 0;
 
-  // Initialize all ports potentially needed
-  Port *active_pair[] = {n1->ports, n2->ports};
+  Node *active_pair[] = {left, right};
 
-  Port lvars[node_arities[n1->kind]];
-  Port rvars[node_arities[n2->kind]];
-  Port *vars[] = {lvars, rvars};
-
-  Port *new_nodes[MAX_NEW_NODES];
+  Node *new_nodes[MAX_NEW_NODES];
   size_t next_new = 0;
-
-  Port **all_ports[] = {active_pair, vars, new_nodes}; 
-
-  // Get all variable ports
-  for (int i = 0; i < node_arities[n1->kind]; i++) {
-    lvars[i] = n1->ports[i+1];
-  }
-  for (int i = 0; i < node_arities[n2->kind]; i++) {
-    rvars[i] = n2->ports[i+1];
-  }
 
   // Make new nodes
   while (actions[next_action].kind == NEW)  {
     std::cout << "Making new node: " << actions[next_action].action.new_node << std::endl;
-    Node *new_node = newNode(actions[next_action].action.new_node);
-    new_nodes[next_new] = new_node->ports;
+    new_nodes[next_new] = newNode(actions[next_action].action.new_node); 
 
     next_action++;
     next_new++;
@@ -87,25 +74,57 @@ void interact() {
     Connect c1 = actions[next_action].action.connect.c1;
     Connect c2 = actions[next_action].action.connect.c2;
 
-    Port p1 = all_ports[c1.group][c1.index][c1.port];
-    Port p2 = all_ports[c2.group][c2.index][c2.port];
+    Node *n1, *n2;
+    std::size_t p1 = c1.port, p2 = c2.port;
 
-    std::cout << "Connecting Nodes: (" << p1.node << ", " << p1.port << ") - (" 
-      << p2.node << ", " << p2.port 
+    switch (c1.group) {
+      case ACTIVE_PAIR: {
+        n1 = active_pair[c1.node];
+        break;
+      }
+      case VARS: {
+        n1 = active_pair[c1.node]->ports[c1.port+1].node;
+        p1 = active_pair[c1.node]->ports[c1.port+1].port;
+        break;
+      }
+      case NEW_NODES: {
+        n1 = new_nodes[c1.node];
+        break;
+      }
+    }
+
+    switch (c2.group) {
+      case ACTIVE_PAIR: {
+        n2 = active_pair[c2.node];
+        break;
+      }
+      case VARS: {
+        n2 = active_pair[c2.node]->ports[c2.port+1].node;
+        p2 = active_pair[c2.node]->ports[c2.port+1].port;
+        break;
+      }
+      case NEW_NODES: {
+        n2 = new_nodes[c2.node];
+        break;
+      }
+    }
+
+    std::cout << "Connecting Nodes: (" << n1->kind << ", " << p1 << ") - (" 
+      << n2->kind << ", " << p2 << ")"
       << std::endl;
-    connect(p1.node, p1.port, p2.node, p2.port);
+    connect(n1, p1, n2, p2);
 
-    next_new++;
+    next_action++;
   }
 
   //Free nodes
   while(actions[next_action].kind == FREE) {
     if (actions[next_action].action.free) {
-      std::cout << "Freeing Node: " << n1->kind << std::endl;
-      freeNode(n1);
+      std::cout << "Freeing Node: " << left->kind << std::endl;
+      freeNode(left);
     } else {
-      std::cout << "Freeing Node: " << n2->kind << std::endl;
-      freeNode(n2);
+      std::cout << "Freeing Node: " << right->kind << std::endl;
+      freeNode(right);
     }
 
     next_action++;
