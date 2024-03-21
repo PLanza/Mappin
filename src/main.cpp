@@ -23,6 +23,6 @@ int main() {
   while (!inet::interactions.empty()){
     inet::interact();
   }
-  
+
   return 0;
 };

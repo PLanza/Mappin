@@ -20,6 +20,7 @@ struct Port {
 struct Node {
   node_kind kind;
   Port *ports;
+  uint32_t value;
 };
 
 
@@ -43,17 +44,22 @@ struct Connect {
 typedef struct {
   Connect c1;
   Connect c2;
-} Connection;
+} ConnectAction;
+
+typedef struct {
+  node_kind kind;
+  int32_t value; // -1 means copy the left node's value, -2 means copy the right node's value
+} NewNodeAction;
 
 struct Action {
   ActionKind kind;
   union {
-    node_kind new_node;
-    Connection connect;
+    NewNodeAction new_node;
+    ConnectAction connect;
     bool free; // only free the interacting nodes so a choice between 2
   } action;
 
-  Action(node_kind);
+  Action(node_kind, int32_t);
   Action(Connect, Connect);
   Action(bool);
 };
