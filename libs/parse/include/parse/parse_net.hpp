@@ -8,12 +8,12 @@
 
 namespace inet {
 
-const int NODE_KINDS = 20;
+const int NODE_KINDS = 19;
 
 enum NodeKind {
   DELETE, DELTA, GAMMA, 
   NIL, CONS, APPEND, FOLD, 
-  IF, TRUE, FALSE, 
+  IF, BOOL,
   CONT, CONT_AUX, 
   SLASH, COMP, COMP_SYM, COMP_END, 
   BAR, BAR_AUX, END, SYM 
