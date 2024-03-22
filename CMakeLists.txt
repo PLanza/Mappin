@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_BUILD_TYPE Debug)
 
 #Create compile_commands.json
-#set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(PROJECT_NAME
   mappin

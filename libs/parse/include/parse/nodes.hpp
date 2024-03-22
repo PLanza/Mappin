@@ -1,5 +1,5 @@
-#ifndef __MAPPIN_PARSE_PARSE_NET__
-#define __MAPPIN_PARSE_PARSE_NET__
+#ifndef __MAPPIN_PARSE_NODES__
+#define __MAPPIN_PARSE_NODES__
 
 #include <queue>
 #include <vector>

@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "inet.hpp"
-#include "parse_net.hpp"
+#include "nodes.hpp"
 
 namespace inet {
 

@@ -1,7 +1,7 @@
 #include <generate/grammar/llgrammar.hpp>
 #include <generate/grammar_parser.hpp>
 #include <iostream>
-#include <parse/parse_net.hpp>
+#include <parse/nodes.hpp>
 #include <parse/inet.hpp>
 #include <util/util.hpp>
 

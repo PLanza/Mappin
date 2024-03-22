@@ -24,7 +24,7 @@ struct Node {
 };
 
 
-Node *newNode(node_kind kind);
+Node *newNode(node_kind kind, uint32_t value);
 void connect(Node *n1, size_t p1, Node *n2, size_t p2);
 void freeNode(Node *n);
 
