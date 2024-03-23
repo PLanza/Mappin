@@ -82,18 +82,15 @@ Node *create_compose_network(Node *xs, Node* ys) {
   Node *fold_ys = newNode(FOLD, 0);
   connect(fold_ys, 1, newNode(NIL, 0), 0);
 
-  // If passed in first layer of initial stack actions:
-  if (xs->kind == CONS && ys->kind == CONS) {
+  if (xs->kind == CONS)
     connect(xs, 0, fold_xs, 0);
-    connect(ys, 0, fold_ys, 0);
-  }
-  // If passed in later layers of compositions
-  else if (xs->kind == FOLD && ys->kind == FOLD) {
+  else if (xs->kind == FOLD)
     connect(xs, 3, fold_xs, 0);
+
+  if (ys->kind == CONS) 
+    connect(ys, 0, fold_ys, 0);
+  else if (ys->kind == FOLD)
     connect(ys, 3, fold_ys, 0);
-  } else {
-    std::cerr << "Expecting CONS or FOLD nodes as input to compose network" << std::endl;
-  }
 
   Node *gamma_1 = newNode(GAMMA, 0);
   connect(gamma_1, 0, fold_xs, 2);
@@ -152,7 +149,7 @@ void create_parser_network(std::vector<grammar::StackAction> *stack_actions,
   std::vector<Node *> &prev_layer = input_action_lists;
   while (prev_layer.size() != 1) {
     std::vector<Node *> curr_layer;
-    for (size_t i = 0; i < prev_layer.size(); i+=2) {
+    for (size_t i = 0; i < prev_layer.size() - 1; i+=2) {
       curr_layer.push_back(create_compose_network(prev_layer[i], prev_layer[i+1]));
     }
     if (prev_layer.size() % 2 == 1)
