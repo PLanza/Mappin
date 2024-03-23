@@ -45,10 +45,14 @@ Action::Action(Connect c1, Connect c2) : kind(CONNECT) {
 Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
 void interact() {
+  std::cout << interactions.size() << " active interactions" << std::endl;
+
   Interaction interaction = interactions.front();
   interactions.pop();
   Node *left = interaction.n1;
   Node *right = interaction.n2;
+
+  std::cout << "Performing -| " << left->kind << " >-< " << right->kind << " |- interaction" << std::endl; 
 
   std::vector<Action> actions =
       left->value == right->value
@@ -66,8 +70,6 @@ void interact() {
 
   // Make new nodes
   while (actions[next_action].kind == NEW) {
-    std::cout << "Making new node: "
-              << actions[next_action].action.new_node.kind << std::endl;
     NewNodeAction nna = actions[next_action].action.new_node;
 
     if (nna.value == -1)
@@ -121,8 +123,6 @@ void interact() {
     }
     }
 
-    std::cout << "Connecting Nodes: (" << n1->kind << ", " << p1 << ") - ("
-              << n2->kind << ", " << p2 << ")" << std::endl;
     connect(n1, p1, n2, p2);
 
     next_action++;
@@ -130,13 +130,10 @@ void interact() {
 
   // Free nodes
   while (actions[next_action].kind == FREE) {
-    if (actions[next_action].action.free) {
-      std::cout << "Freeing Node: " << left->kind << std::endl;
+    if (actions[next_action].action.free) 
       freeNode(left);
-    } else {
-      std::cout << "Freeing Node: " << right->kind << std::endl;
+     else 
       freeNode(right);
-    }
 
     next_action++;
   }
