@@ -160,6 +160,7 @@ std::unique_ptr<grammar::Grammar> GrammarParser<G>::parseGrammar() {
   while (!this->eof()) {
     this->parseGrammarDefinition();
   }
+  this->grammar->fillStringArrays();
 
   std::cout << "Done!" << std::endl;
   return std::move(this->grammar);

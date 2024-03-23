@@ -15,11 +15,10 @@ enum TokenKind { TERM, NON_TERM, ANY, REST };
 struct Token {
   TokenKind kind;
   uint32_t id;
-  std::string name;
 };
 
-const Token ANY_TOKEN = Token{ANY, 0, ""};
-const Token REST_TOKEN = Token{REST, 0, ""};
+const Token ANY_TOKEN = Token{ANY, 0};
+const Token REST_TOKEN = Token{REST, 0};
 
 enum ParseActionKind { EMPTY, SHIFT, REDUCE };
 
@@ -56,18 +55,21 @@ public:
   Token newToken(TokenKind, std::string);
 
   void addRule(std::string, std::vector<Token>, bool, std::size_t);
+  void fillStringArrays();
   virtual void makeParseTable() = 0;
   virtual void generateStackActions() = 0;
 
+  std::vector<StackAction> *getStackActions();
+  std::vector<Token> stringToTokens(std::string);
+
   void printGrammar();
-  void printToken(Token token);
+  void printToken(Token);
   virtual void printParseTable() = 0;
   void printStackActions();
 
 protected:
   Grammar(const char *);
 
-  void fillStringArrays();
 
   const char *file_name;
   uint32_t start_rule;

@@ -1,5 +1,7 @@
 #include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 #include "grammar.hpp"
 #include "util/util.hpp"
@@ -45,7 +47,7 @@ Token Grammar::newTerminal(std::string name) {
       id_index == this->term_id_map.end()) {
     term_id_map[name] = this->terms_size++;
   }
-  return {TERM, term_id_map[name], name};
+  return {TERM, term_id_map[name]};
 }
 
 Token Grammar::newNonTerminal(std::string name) {
@@ -53,7 +55,7 @@ Token Grammar::newNonTerminal(std::string name) {
       id_index == this->nonterm_id_map.end()) {
     nonterm_id_map[name] = this->nonterms_size++;
   }
-  return {NON_TERM, nonterm_id_map[name], name};
+  return {NON_TERM, nonterm_id_map[name]};
 }
 
 void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
@@ -72,6 +74,23 @@ void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
   this->rules.push_back({head, rhs, line});
 }
 
+std::vector<StackAction> *Grammar::getStackActions() {
+  return this->stack_actions;
+}
+
+std::vector<Token> Grammar::stringToTokens(std::string input) {
+  std::vector<Token> tokens = {{TERM, this->term_id_map["<"]}};
+
+  std::stringstream input_stream = std::stringstream(input);
+  std::string token_string;
+
+  while (std::getline(input_stream, token_string, ' ')) {
+    tokens.push_back({TERM, this->term_id_map[token_string]});
+  }
+
+  return tokens;
+}
+
 void Grammar::printGrammar() {
   for (uint32_t i = 0; i < this->rules.size(); i++) {
     const auto &[head, rhs, _] = this->rules[i];
@@ -79,10 +98,15 @@ void Grammar::printGrammar() {
     if (i == this->start_rule)
       std::cout << "$ ";
 
-    std::cout << head.name << " := ";
+    std::cout << this->nonterminals[head.id] << " := ";
 
     for (auto &token : rhs) {
-      std::cout << "(" << token.id << ": " << token.name << ") ";
+      std::cout << "(" << token.id << ": "; 
+      if (token.kind == TERM)
+        std::cout<< this->terminals[token.id];
+      else
+        std::cout<< this->nonterminals[token.id];
+      std::cout << ") ";
     }
     std::cout << "\n";
   }

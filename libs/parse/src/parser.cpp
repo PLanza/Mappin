@@ -131,7 +131,7 @@ Node *create_compose_network(Node *xs, Node* ys) {
 }
 
 // Returns the node with the final return value
-void create_parser_network(std::vector<grammar::StackAction> *&stack_actions,
+void create_parser_network(std::vector<grammar::StackAction> *stack_actions,
                            std::vector<grammar::Token> input) {
 
   std::vector<Node *> input_action_lists;

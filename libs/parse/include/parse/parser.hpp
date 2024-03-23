@@ -3,10 +3,10 @@
 
 #include <generate/grammar.hpp>
 
-namespace inet{
+namespace inet {
 
 void create_parser_network(
-  std::vector<grammar::StackAction>* &, 
+  std::vector<grammar::StackAction>*, 
   std::vector<grammar::Token>);
 
 }
