@@ -78,6 +78,8 @@ std::vector<StackAction> *Grammar::getStackActions() {
   return this->stack_actions;
 }
 
+std::string *Grammar::getTerminals() { return this->terminals; }
+
 std::vector<Token> Grammar::stringToTokens(std::string input) {
   std::vector<Token> tokens = {{TERM, this->term_id_map["<"]}};
 
@@ -101,11 +103,11 @@ void Grammar::printGrammar() {
     std::cout << this->nonterminals[head.id] << " := ";
 
     for (auto &token : rhs) {
-      std::cout << "(" << token.id << ": "; 
+      std::cout << "(" << token.id << ": ";
       if (token.kind == TERM)
-        std::cout<< this->terminals[token.id];
+        std::cout << this->terminals[token.id];
       else
-        std::cout<< this->nonterminals[token.id];
+        std::cout << this->nonterminals[token.id];
       std::cout << ") ";
     }
     std::cout << "\n";

@@ -2,6 +2,7 @@
 #define __MAPPIN_PARSE_NODES__
 
 #include <queue>
+#include <string>
 #include <vector>
 
 #include "inet.hpp"
@@ -20,6 +21,7 @@ enum NodeKind {
 };
 
 extern int node_arities[NODE_KINDS];
+extern std::string node_strings[NODE_KINDS];
 
 typedef struct {
   Node *n1;

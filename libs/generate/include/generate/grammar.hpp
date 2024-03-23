@@ -60,6 +60,7 @@ public:
   virtual void generateStackActions() = 0;
 
   std::vector<StackAction> *getStackActions();
+  std::string *getTerminals();
   std::vector<Token> stringToTokens(std::string);
 
   void printGrammar();
@@ -69,7 +70,6 @@ public:
 
 protected:
   Grammar(const char *);
-
 
   const char *file_name;
   uint32_t start_rule;

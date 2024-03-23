@@ -1,10 +1,10 @@
 #include <generate/grammar/llgrammar.hpp>
 #include <generate/grammar_parser.hpp>
 #include <iostream>
+#include <parse/draw.hpp>
 #include <parse/inet.hpp>
 #include <parse/nodes.hpp>
 #include <parse/parser.hpp>
-#include <parse/draw.hpp>
 #include <util/util.hpp>
 
 int main() {
@@ -25,8 +25,8 @@ int main() {
   inet::init();
   std::vector<grammar::Token> tokens = g->stringToTokens("B B X Z Z C C Y");
   inet::create_parser_network(g->getStackActions(), tokens);
-  
-  inet::drawNetwork();
+
+  inet::drawNetwork(g->getTerminals());
 
   while (!inet::interactions.empty()) {
     inet::interact();

@@ -8,6 +8,10 @@ namespace inet {
 
 int node_arities[NODE_KINDS] = {0, 2, 2, 0, 2, 2, 3, 3, 0, 3,
                                 3, 2, 2, 2, 1, 1, 1, 0, 1};
+std::string node_strings[NODE_KINDS] = {
+    "DEL", "δ", "γ", "[]",  "::",  "@", "fold", "if", "bool", "k",
+    "k\'", "/", "○", "○_X", "○_$", "-", "-\'",  "$",  "X"};
+
 std::queue<Interaction> interactions;
 // (Node × Node × bool) -> Action[]
 // bool represents if the two nodes' values match
