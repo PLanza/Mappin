@@ -10,10 +10,14 @@ namespace inet {
 
 const uint32_t MAX_NEW_NODES = 5;
 
+std::unordered_set<Node *> nodes;
+
 Node *newNode(node_kind kind, uint32_t value) {
   Node *node = new Node;
   node->kind = kind;
   node->value = value;
+
+  nodes.insert(node);
 
   Port *ports = new Port[node_arities[kind] + 1];
   node->ports = ports;
@@ -31,6 +35,8 @@ void connect(Node *n1, std::size_t p1, Node *n2, std::size_t p2) {
 
 void freeNode(Node *n) {
   free(n->ports);
+
+  nodes.erase(n);
   free(n);
 }
 

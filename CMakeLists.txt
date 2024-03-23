@@ -33,6 +33,7 @@ set(LIBRARIES
   util
   generate
   parse
+  drag
 )
 
 project(${PROJECT_NAME} 

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <unordered_set>
 
 namespace inet {
   
@@ -23,6 +24,7 @@ struct Node {
   uint32_t value;
 };
 
+extern std::unordered_set<Node *> nodes;
 
 Node *newNode(node_kind kind, uint32_t value);
 void connect(Node *n1, size_t p1, Node *n2, size_t p2);

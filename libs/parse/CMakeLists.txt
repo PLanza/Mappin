@@ -15,6 +15,7 @@ set(SOURCE
     ${SOURCE_DIR}/inet.cpp
     ${SOURCE_DIR}/nodes.cpp
     ${SOURCE_DIR}/parser.cpp
+    ${SOURCE_DIR}/draw.cpp
 )
 
 set(HEADERS_DIR
@@ -24,10 +25,12 @@ set(HEADERS
   ${HEADERS_DIR}/inet.hpp
   ${HEADERS_DIR}/nodes.hpp
   ${HEADERS_DIR}/parser.hpp
+  ${HEADERS_DIR}/draw.hpp
 )
 
 set(LIBRARIES
   generate
+  drag
 )
 
 project(${PROJECT_NAME}
