@@ -2,9 +2,12 @@
 #define __MAPPIN_PARSE_DRAW__
 
 #include <string>
+#include <generate/grammar.hpp>
+#include <memory>
+
 namespace inet {
 
-void drawNetwork(std::string *);
+void drawNetwork(std::unique_ptr<grammar::Grammar> &);
 
 }
 

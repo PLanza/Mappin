@@ -9,15 +9,29 @@
 
 namespace inet {
 
-const int NODE_KINDS = 19;
+const int NODE_KINDS = 20;
 
 enum NodeKind {
-  DELETE, DELTA, GAMMA, 
-  NIL, CONS, APPEND, FOLD, 
-  IF, BOOL,
-  CONT, CONT_AUX, 
-  SLASH, COMP, COMP_SYM, COMP_END, 
-  BAR, BAR_AUX, END, SYM 
+  OUTPUT,
+  DELETE,
+  DELTA,
+  GAMMA,
+  NIL,
+  CONS,
+  APPEND,
+  FOLD,
+  IF,
+  BOOL,
+  CONT,
+  CONT_AUX,
+  SLASH,
+  COMP,
+  COMP_SYM,
+  COMP_END,
+  BAR,
+  BAR_AUX,
+  END,
+  SYM
 };
 
 extern int node_arities[NODE_KINDS];
@@ -32,6 +46,8 @@ extern std::queue<Interaction> interactions;
 extern std::vector<Action> *actions_map;
 
 void init();
-}
+
+std::vector<Action> &get_actions(node_kind, node_kind, bool);
+} // namespace inet
 
 #endif

@@ -79,6 +79,7 @@ std::vector<StackAction> *Grammar::getStackActions() {
 }
 
 std::string *Grammar::getTerminals() { return this->terminals; }
+std::string *Grammar::getNonTerminals() { return this->nonterminals; }
 
 std::vector<Token> Grammar::stringToTokens(std::string input) {
   std::vector<Token> tokens = {{TERM, this->term_id_map["<"]}};
@@ -155,6 +156,7 @@ void Grammar::printStackActions() {
       for (const grammar::Token &token : stack_action.rhs) {
         this->printToken(token);
       }
+      std::cout << " | ";
 
       if (stack_action.reduce_rules.empty())
         continue;

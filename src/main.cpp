@@ -23,12 +23,12 @@ int main() {
   }
 
   inet::init();
-  std::vector<grammar::Token> tokens = g->stringToTokens("B B X Z Z C C Y");
-  inet::create_parser_network(g->getStackActions(), tokens);
-
-  inet::drawNetwork(g->getTerminals());
+  std::vector<grammar::Token> tokens = g->stringToTokens("X Y");
+  inet::Node *output =
+      inet::create_parser_network(g->getStackActions(), tokens);
 
   while (!inet::interactions.empty()) {
+    //inet::drawNetwork(g);
     inet::interact();
   }
 

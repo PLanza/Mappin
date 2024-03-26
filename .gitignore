@@ -1,5 +1,6 @@
 .clangd
 build
 compile_commands.json
-libs/drag
 .cache
+images
+.vscode

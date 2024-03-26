@@ -74,7 +74,7 @@ Node *get_stack_action_network(grammar::StackAction &action) {
 }
 
 // Return value is fold_xs' port #3
-Node *create_compose_network(Node *xs, Node* ys) {
+Node *create_compose_network(Node *xs, Node *ys) {
   // If passed in later layers of compositions
   Node *fold_xs = newNode(FOLD, 0);
   connect(fold_xs, 1, newNode(NIL, 0), 0);
@@ -87,7 +87,7 @@ Node *create_compose_network(Node *xs, Node* ys) {
   else if (xs->kind == FOLD)
     connect(xs, 3, fold_xs, 0);
 
-  if (ys->kind == CONS) 
+  if (ys->kind == CONS)
     connect(ys, 0, fold_ys, 0);
   else if (ys->kind == FOLD)
     connect(ys, 3, fold_ys, 0);
@@ -97,24 +97,24 @@ Node *create_compose_network(Node *xs, Node* ys) {
   Node *gamma_2 = newNode(GAMMA, 0);
   connect(gamma_2, 0, gamma_1, 2);
 
-  Node* append = newNode(APPEND, 0);
-  connect(append, 0, gamma_2, 2);
+  Node *append = newNode(APPEND, 0);
+  connect(append, 0, gamma_2, 1);
   connect(append, 1, fold_ys, 3);
-  connect(append, 2, gamma_2, 1);
+  connect(append, 2, gamma_2, 2);
 
   Node *gamma_3 = newNode(GAMMA, 0);
   connect(gamma_3, 0, fold_ys, 2);
   Node *gamma_4 = newNode(GAMMA, 0);
   connect(gamma_4, 0, gamma_3, 2);
 
-  Node *delta = newNode(DELTA, 0);
+  Node *delta = newNode(DELTA, 1);
   connect(delta, 0, gamma_4, 1);
 
   Node *if_ = newNode(IF, 1);
   connect(if_, 2, delta, 2);
   connect(if_, 3, gamma_4, 2);
 
-  Node * cons = newNode(CONS, 0);
+  Node *cons = newNode(CONS, 0);
   connect(cons, 0, if_, 1);
   connect(cons, 2, delta, 1);
 
@@ -127,9 +127,9 @@ Node *create_compose_network(Node *xs, Node* ys) {
   return fold_xs;
 }
 
-// Returns the node with the final return value
-void create_parser_network(std::vector<grammar::StackAction> *stack_actions,
-                           std::vector<grammar::Token> input) {
+// Returns the output node
+Node *create_parser_network(std::vector<grammar::StackAction> *stack_actions,
+                            std::vector<grammar::Token> input) {
 
   std::vector<Node *> input_action_lists;
   for (grammar::Token token : input) {
@@ -145,18 +145,23 @@ void create_parser_network(std::vector<grammar::StackAction> *stack_actions,
     input_action_lists.push_back(tail);
   }
 
-
   std::vector<Node *> &prev_layer = input_action_lists;
   while (prev_layer.size() != 1) {
     std::vector<Node *> curr_layer;
-    for (size_t i = 0; i < prev_layer.size() - 1; i+=2) {
-      curr_layer.push_back(create_compose_network(prev_layer[i], prev_layer[i+1]));
+    for (size_t i = 0; i < prev_layer.size() - 1; i += 2) {
+      curr_layer.push_back(
+          create_compose_network(prev_layer[i], prev_layer[i + 1]));
     }
     if (prev_layer.size() % 2 == 1)
       curr_layer.push_back(prev_layer.back());
 
     prev_layer = curr_layer;
   }
+
+  Node *out = newNode(OUTPUT, 0);
+  connect(out, 1, prev_layer[0], 3);
+
+  return out;
 }
 
 } // namespace inet

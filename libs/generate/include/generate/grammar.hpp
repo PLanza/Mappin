@@ -61,6 +61,7 @@ public:
 
   std::vector<StackAction> *getStackActions();
   std::string *getTerminals();
+  std::string *getNonTerminals();
   std::vector<Token> stringToTokens(std::string);
 
   void printGrammar();

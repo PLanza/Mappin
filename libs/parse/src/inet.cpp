@@ -14,13 +14,15 @@ std::unordered_set<Node *> nodes;
 
 Node *newNode(node_kind kind, uint32_t value) {
   Node *node = new Node;
+
   node->kind = kind;
   node->value = value;
 
-  nodes.insert(node);
-
   Port *ports = new Port[node_arities[kind] + 1];
   node->ports = ports;
+
+  nodes.insert(node);
+
   return node;
 }
 
@@ -34,10 +36,10 @@ void connect(Node *n1, std::size_t p1, Node *n2, std::size_t p2) {
 }
 
 void freeNode(Node *n) {
-  free(n->ports);
+  delete[] n->ports;
 
   nodes.erase(n);
-  free(n);
+  delete n;
 }
 
 Action::Action(node_kind kind, int32_t value) : kind(NEW) {
@@ -58,12 +60,11 @@ void interact() {
   Node *left = interaction.n1;
   Node *right = interaction.n2;
 
-  std::cout << "Performing -| " << left->kind << " >-< " << right->kind << " |- interaction" << std::endl; 
+  std::cout << "Performing -| " << left->kind << " >-< " << right->kind
+            << " |- interaction" << std::endl;
 
-  std::vector<Action> actions =
-      left->value == right->value
-          ? actions_map[2 * (left->kind * NODE_KINDS + right->kind)]
-          : actions_map[2 * (left->kind * NODE_KINDS + right->kind) + 1];
+  std::vector<Action> &actions =
+      get_actions(left->kind, right->kind, left->value == right->value);
 
   if (actions.empty())
     return;
@@ -82,6 +83,9 @@ void interact() {
       new_nodes[next_new] = newNode(nna.kind, left->value);
     else if (nna.value == -2)
       new_nodes[next_new] = newNode(nna.kind, right->value);
+    else if (nna.value == -3)
+      new_nodes[next_new] =
+          newNode(nna.kind, reinterpret_cast<std::uintptr_t>(left));
     else
       new_nodes[next_new] = newNode(nna.kind, nna.value);
 
@@ -136,9 +140,9 @@ void interact() {
 
   // Free nodes
   while (actions[next_action].kind == FREE) {
-    if (actions[next_action].action.free) 
+    if (actions[next_action].action.free)
       freeNode(left);
-     else 
+    else
       freeNode(right);
 
     next_action++;

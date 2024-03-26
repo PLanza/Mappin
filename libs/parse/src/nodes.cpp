@@ -1,4 +1,3 @@
-#include <queue>
 #include <vector>
 
 #include "inet.hpp"
@@ -6,17 +5,24 @@
 
 namespace inet {
 
-int node_arities[NODE_KINDS] = {0, 2, 2, 0, 2, 2, 3, 3, 0, 3,
-                                3, 2, 2, 2, 1, 1, 1, 0, 1};
+int node_arities[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0,
+                                3, 3, 2, 2, 2, 1, 1, 1, 0, 1};
 std::string node_strings[NODE_KINDS] = {
-    "DEL", "δ", "γ", "[]",  "::",  "@", "fold", "if", "bool", "k",
-    "k\'", "/", "○", "○_X", "○_$", "-", "-\'",  "$",  "X"};
+    "out", "DEL", "δ", "γ", "[]",  "::",  "@", "fold", "if", "bool",
+    "k",   "k\'", "/", "○", "○_X", "○_$", "-", "-\'",  "$",  "X"};
 
 std::queue<Interaction> interactions;
 // (Node × Node × bool) -> Action[]
 // bool represents if the two nodes' values match
 std::vector<Action> *actions_map =
     new std::vector<Action>[NODE_KINDS * NODE_KINDS * 2];
+
+std::vector<Action> &get_actions(node_kind k1, node_kind k2, bool match) {
+  if (match)
+    return actions_map[2 * (k1 * NODE_KINDS + k2)];
+  else
+    return actions_map[2 * (k1 * NODE_KINDS + k2) + 1];
+}
 
 // Alternatively, only fill out half the table and index with ordered node kinds
 void get_inverse_actions(std::vector<Action> &actions) {
@@ -82,20 +88,40 @@ void add_delete_actions() {
       actions.push_back(Action({NEW_NODES, i - 1, 0}, {VARS, 1, i}));
 
     actions.push_back(Action(false));
+    if (node_arities[kind] == 0)
+      actions.push_back(Action(true));
+
     add_actions(DELETE, (NodeKind)kind, actions);
   }
 }
 
 void add_delta_actions() {
-  add_actions(DELTA, DELTA,
+  add_actions(DELTA, DELTA, true,
               {Action({VARS, 0, 0}, {VARS, 1, 0}),
                Action({VARS, 0, 1}, {VARS, 1, 1}), Action(true),
                Action(false)});
+
+  add_actions(DELTA, DELTA, false,
+              {
+                  Action(DELTA, -1),
+                  Action(DELTA, -2),
+                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                  Action({VARS, 0, 1}, {NEW_NODES, 1, 0}),
+                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                  Action({VARS, 1, 1}, {NEW_NODES, 0, 0}),
+                  Action({ACTIVE_PAIR, 1, 1}, {ACTIVE_PAIR, 0, 1}),
+                  Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 1, 1}),
+                  Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 0, 1}),
+                  Action({NEW_NODES, 0, 2}, {NEW_NODES, 1, 2}),
+              });
 
   // Assume DELTA on left side
   for (unsigned int kind = GAMMA; kind <= SYM; kind++) {
     std::vector<Action> actions;
     actions.push_back(Action((node_kind)kind, -2));
+
+    for (int i = 1; i < node_arities[kind]; i++)
+      actions.push_back(Action(DELTA, -1));
 
     actions.push_back(Action({ACTIVE_PAIR, 1, 0}, {VARS, 0, 0}));
     actions.push_back(Action({NEW_NODES, 0, 0}, {VARS, 0, 1}));
@@ -105,9 +131,6 @@ void add_delta_actions() {
       add_actions(DELTA, (NodeKind)kind, actions);
       continue;
     }
-
-    for (int i = 1; i < node_arities[kind]; i++)
-      actions.push_back(Action(DELTA, 0));
 
     actions.push_back(Action({ACTIVE_PAIR, 0, 0}, {VARS, 1, 0}));
     actions.push_back(Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}));
@@ -157,7 +180,7 @@ void init() {
               });
   add_actions(FOLD, CONS,
               {
-                  Action(DELTA, 0),
+                  Action(DELTA, -3),
                   Action(GAMMA, 0),
                   Action(GAMMA, 0),
                   Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
@@ -196,7 +219,7 @@ void init() {
                Action({VARS, 1, 1}, {NEW_NODES, 0, 2}),
                Action({VARS, 1, 2}, {ACTIVE_PAIR, 0, 0}),
                Action({ACTIVE_PAIR, 0, 1}, {NEW_NODES, 1, 1}),
-               Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 0, 3}), Action(true)});
+               Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 0, 3}), Action(false)});
   add_actions(CONT_AUX, SLASH,
               {Action(COMP, 0), Action(BAR_AUX, 0),
                Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),

@@ -13,6 +13,14 @@ set(PROJECT_NAME
   mappin
 )
 
+include(FetchContent)
+FetchContent_Declare(
+  drag
+  GIT_REPOSITORY https://github.com/bigno78/drag.git
+  GIT_TAG master
+)
+FetchContent_MakeAvailable(drag)
+
 set(SOURCE_DIR
     src
 )
@@ -33,7 +41,6 @@ set(LIBRARIES
   util
   generate
   parse
-  drag
 )
 
 project(${PROJECT_NAME} 
