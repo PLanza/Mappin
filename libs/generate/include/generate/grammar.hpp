@@ -36,6 +36,7 @@ struct StackAction {
 class ParseTable {
 public:
   virtual ParseAction getAction(uint32_t, uint32_t) = 0;
+  virtual ~ParseTable() = default;
 };
 
 enum GrammarExceptionKind {
@@ -70,6 +71,8 @@ public:
   void printToken(Token);
   virtual void printParseTable() = 0;
   void printStackActions();
+
+  virtual ~Grammar();
 
 protected:
   Grammar(const char *);

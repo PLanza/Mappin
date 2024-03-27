@@ -22,6 +22,8 @@ private:
 class LLGrammar : public Grammar {
 public:
   LLGrammar(const char *);
+  ~LLGrammar();
+
   void makeParseTable() override;
   void generateStackActions() override;
   void printParseTable() override;

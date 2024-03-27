@@ -7,6 +7,11 @@
 namespace grammar {
 LLGrammar::LLGrammar(const char *file_name) : Grammar(file_name) {}
 
+LLGrammar::~LLGrammar() {
+  delete this->parse_table;
+  delete[] this->stack_actions;
+}
+
 void LLGrammar::makeParseTable() {
   this->parse_table = new LLParseTable(this->terms_size, this->nonterms_size,
                                        this->rules, this->file_name);
@@ -33,9 +38,7 @@ void LLGrammar::generateStackActions() {
   // SHIFT rules
   for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
     this->stack_actions[t_id].push_back(
-        StackAction{{Token{TERM, t_id}, REST_TOKEN},
-                    {REST_TOKEN},
-                    {}});
+        StackAction{{Token{TERM, t_id}, REST_TOKEN}, {REST_TOKEN}, {}});
   }
 
   // REDUCE rules
@@ -53,9 +56,7 @@ void LLGrammar::generateStackActions() {
 
         right_stack.push_back(REST_TOKEN);
         this->stack_actions[t_id].push_back(StackAction{
-            {Token{NON_TERM, nt_id}, REST_TOKEN},
-            right_stack,
-            reduce_rules});
+            {Token{NON_TERM, nt_id}, REST_TOKEN}, right_stack, reduce_rules});
         break;
       }
       }

@@ -191,6 +191,11 @@ void Grammar::fillStringArrays() {
     this->nonterminals[nt_id] = name;
 }
 
+Grammar::~Grammar() {
+  delete[] this->terminals;
+  delete[] this->nonterminals;
+}
+
 MappinException *exceptionOnLine(GrammarExceptionKind kind,
                                  const char *file_name, std::size_t line) {
   std::ifstream file_stream;
