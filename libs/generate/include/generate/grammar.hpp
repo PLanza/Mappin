@@ -60,8 +60,10 @@ public:
   virtual void generateStackActions() = 0;
 
   std::vector<StackAction> *getStackActions();
-  std::string *getTerminals();
-  std::string *getNonTerminals();
+  std::tuple<Token, std::vector<Token>, std::size_t> &getRule(size_t);
+  std::string &getTerminalString(uint32_t);
+  std::string &getNonTerminalString(uint32_t);
+
   std::vector<Token> stringToTokens(std::string);
 
   void printGrammar();

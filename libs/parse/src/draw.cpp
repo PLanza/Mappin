@@ -10,7 +10,7 @@
 
 namespace inet {
 
-grammar::Token node_to_token(uint32_t value) {
+grammar::Token nodeToToken(uint32_t value) {
   if (value % 2 == 0)
     return {grammar::TERM, value / 2};
   else
@@ -19,8 +19,6 @@ grammar::Token node_to_token(uint32_t value) {
 
 void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
   static int counter = 0;
-  std::string *terminals = grammar->getTerminals();
-  std::string *nonterminals = grammar->getNonTerminals();
   drag::graph g;
   std::unordered_map<Node *, drag::vertex_t> node_map;
 
@@ -34,16 +32,16 @@ void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
     if (node->kind == BOOL) {
       opts.labels[graph_node] = node->value == 1 ? "T" : "F";
     } else if (node->kind == SYM) {
-      grammar::Token token = node_to_token(node->value);
+      grammar::Token token = nodeToToken(node->value);
       opts.labels[graph_node] = token.kind == grammar::TERM
-                                    ? terminals[token.id]
-                                    : nonterminals[token.id];
+                                    ? grammar->getTerminalString(token.id)
+                                    : grammar->getNonTerminalString(token.id);
     } else if (node->kind == COMP_SYM) {
-      grammar::Token token = node_to_token(node->value);
+      grammar::Token token = nodeToToken(node->value);
       opts.labels[graph_node] = "○_";
       opts.labels[graph_node] += token.kind == grammar::TERM
-                                     ? terminals[token.id]
-                                     : nonterminals[token.id];
+                                     ? grammar->getTerminalString(token.id)
+                                     : grammar->getNonTerminalString(token.id);
     } else if (node->kind == DELTA) {
       opts.labels[graph_node] = node_strings[node->kind];
       opts.labels[graph_node] += std::to_string(node->value % 100);

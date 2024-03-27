@@ -22,15 +22,20 @@ int main() {
     return -1;
   }
 
+  std::string parseString = "B B X Z Z C C Y";
+  std::cout << "\nParsing: " << parseString << std::endl;
+
   inet::init();
-  std::vector<grammar::Token> tokens = g->stringToTokens("X Y");
-  inet::Node *output =
-      inet::create_parser_network(g->getStackActions(), tokens);
+  std::vector<grammar::Token> tokens = g->stringToTokens(parseString);
+  inet::Node *output = inet::createParserNetwork(g->getStackActions(), tokens);
 
   while (!inet::interactions.empty()) {
-    //inet::drawNetwork(g);
     inet::interact();
   }
+  inet::drawNetwork(g);
+
+  std::cout << "Parsing results: " << std::endl;
+  inet::getParses(output, g);
 
   return 0;
 };

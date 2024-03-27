@@ -13,13 +13,13 @@ std::string node_strings[NODE_KINDS] = {
     "k\'", "/",   "○", "○_X", "○_$", "-",  "-\'", "$",    "X",  "R",
 };
 
-std::queue<Interaction> interactions;
+std::deque<Interaction> interactions;
 // (Node × Node × bool) -> Action[]
 // bool represents if the two nodes' values match
 std::vector<Action> *actions_map =
     new std::vector<Action>[NODE_KINDS * NODE_KINDS * 2];
 
-std::vector<Action> &get_actions(node_kind k1, node_kind k2, bool match) {
+std::vector<Action> &getActions(node_kind k1, node_kind k2, bool match) {
   if (match)
     return actions_map[2 * (k1 * NODE_KINDS + k2)];
   else
@@ -27,7 +27,7 @@ std::vector<Action> &get_actions(node_kind k1, node_kind k2, bool match) {
 }
 
 // Alternatively, only fill out half the table and index with ordered node kinds
-void get_inverse_actions(std::vector<Action> &actions) {
+void getInverseActions(std::vector<Action> &actions) {
   for (auto &action : actions) {
     switch (action.kind) {
     case NEW: {
@@ -52,29 +52,29 @@ void get_inverse_actions(std::vector<Action> &actions) {
   }
 }
 
-void add_actions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
+void addActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
   actions_map[2 * (n1 * NODE_KINDS + n2)] = actions;
   actions_map[2 * (n1 * NODE_KINDS + n2) + 1] = actions;
 
-  get_inverse_actions(actions);
+  getInverseActions(actions);
   actions_map[2 * (n2 * NODE_KINDS + n1)] = actions;
   actions_map[2 * (n2 * NODE_KINDS + n1) + 1] = actions;
 }
 
-void add_actions(NodeKind n1, NodeKind n2, bool matches,
-                 std::vector<Action> actions) {
+void addActions(NodeKind n1, NodeKind n2, bool matches,
+                std::vector<Action> actions) {
   if (matches) {
     actions_map[2 * (n1 * NODE_KINDS + n2)] = actions;
-    get_inverse_actions(actions);
+    getInverseActions(actions);
     actions_map[2 * (n2 * NODE_KINDS + n1)] = actions;
   } else {
     actions_map[2 * (n1 * NODE_KINDS + n2) + 1] = actions;
-    get_inverse_actions(actions);
+    getInverseActions(actions);
     actions_map[2 * (n2 * NODE_KINDS + n1) + 1] = actions;
   }
 }
 
-void add_delete_actions() {
+void addDeleteActions() {
   // Assume DELETE on left side
   for (unsigned int kind = DELETE; kind < NODE_KINDS; kind++) {
     std::vector<Action> actions;
@@ -93,29 +93,28 @@ void add_delete_actions() {
     if (node_arities[kind] == 0)
       actions.push_back(Action(true));
 
-    add_actions(DELETE, (NodeKind)kind, actions);
+    addActions(DELETE, (NodeKind)kind, actions);
   }
 }
 
-void add_delta_actions() {
-  add_actions(DELTA, DELTA, true,
-              {Action({VARS, 0, 0}, {VARS, 1, 0}),
-               Action({VARS, 0, 1}, {VARS, 1, 1}), Action(true),
-               Action(false)});
+void addDeltaActions() {
+  addActions(DELTA, DELTA, true,
+             {Action({VARS, 0, 0}, {VARS, 1, 0}),
+              Action({VARS, 0, 1}, {VARS, 1, 1}), Action(true), Action(false)});
 
-  add_actions(DELTA, DELTA, false,
-              {
-                  Action(DELTA, -1),
-                  Action(DELTA, -2),
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action({VARS, 0, 1}, {NEW_NODES, 1, 0}),
-                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
-                  Action({VARS, 1, 1}, {NEW_NODES, 0, 0}),
-                  Action({ACTIVE_PAIR, 1, 1}, {ACTIVE_PAIR, 0, 1}),
-                  Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 1, 1}),
-                  Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 0, 1}),
-                  Action({NEW_NODES, 0, 2}, {NEW_NODES, 1, 2}),
-              });
+  addActions(DELTA, DELTA, false,
+             {
+                 Action(DELTA, -1),
+                 Action(DELTA, -2),
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({VARS, 1, 1}, {NEW_NODES, 0, 0}),
+                 Action({ACTIVE_PAIR, 1, 1}, {ACTIVE_PAIR, 0, 1}),
+                 Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 1, 1}),
+                 Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 0, 1}),
+                 Action({NEW_NODES, 0, 2}, {NEW_NODES, 1, 2}),
+             });
 
   // Assume DELTA on left side
   for (unsigned int kind = GAMMA; kind < NODE_KINDS; kind++) {
@@ -130,7 +129,7 @@ void add_delta_actions() {
 
     if (node_arities[kind] == 0) {
       actions.push_back(Action(true));
-      add_actions(DELTA, (NodeKind)kind, actions);
+      addActions(DELTA, (NodeKind)kind, actions);
       continue;
     }
 
@@ -145,179 +144,179 @@ void add_delta_actions() {
       actions.push_back(Action({NEW_NODES, i, 2}, {NEW_NODES, 0, i + 1}));
     }
 
-    add_actions(DELTA, (NodeKind)kind, actions);
+    addActions(DELTA, (NodeKind)kind, actions);
   }
 }
 
 void init() {
-  add_delete_actions();
-  add_delta_actions();
+  addDeleteActions();
+  addDeltaActions();
 
-  add_actions(GAMMA, GAMMA, true,
-              {
-                  Action({VARS, 0, 0}, {VARS, 1, 0}),
-                  Action({VARS, 0, 1}, {VARS, 1, 1}),
-                  Action(true),
-                  Action(false),
-              });
+  addActions(GAMMA, GAMMA, true,
+             {
+                 Action({VARS, 0, 0}, {VARS, 1, 0}),
+                 Action({VARS, 0, 1}, {VARS, 1, 1}),
+                 Action(true),
+                 Action(false),
+             });
 
-  add_actions(APPEND, NIL,
-              {
-                  Action({VARS, 0, 0}, {VARS, 0, 1}),
-                  Action(true),
-                  Action(false),
-              });
-  add_actions(APPEND, CONS,
-              {Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
-               Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 0}),
-               Action({ACTIVE_PAIR, 0, 2}, {ACTIVE_PAIR, 1, 2})});
+  addActions(APPEND, NIL,
+             {
+                 Action({VARS, 0, 0}, {VARS, 0, 1}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(APPEND, CONS,
+             {Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
+              Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 0}),
+              Action({ACTIVE_PAIR, 0, 2}, {ACTIVE_PAIR, 1, 2})});
 
-  add_actions(FOLD, NIL,
-              {
-                  Action(DELETE, 0),
-                  Action({VARS, 0, 0}, {VARS, 0, 2}),
-                  Action({NEW_NODES, 0, 0}, {VARS, 0, 1}),
-                  Action(true),
-                  Action(false),
-              });
-  add_actions(FOLD, CONS,
-              {
-                  Action(DELTA, -3),
-                  Action(GAMMA, 0),
-                  Action(GAMMA, 0),
-                  Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
-                  Action({VARS, 0, 2}, {NEW_NODES, 2, 2}),
-                  Action({VARS, 1, 0}, {NEW_NODES, 1, 1}),
-                  Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 0}),
-                  Action({NEW_NODES, 0, 1}, {NEW_NODES, 1, 0}),
-                  Action({NEW_NODES, 0, 2}, {ACTIVE_PAIR, 0, 2}),
-                  Action({NEW_NODES, 1, 2}, {NEW_NODES, 2, 0}),
-                  Action({NEW_NODES, 2, 1}, {ACTIVE_PAIR, 0, 3}),
-                  Action(false),
-              });
+  addActions(FOLD, NIL,
+             {
+                 Action(DELETE, 0),
+                 Action({VARS, 0, 0}, {VARS, 0, 2}),
+                 Action({NEW_NODES, 0, 0}, {VARS, 0, 1}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(FOLD, CONS,
+             {
+                 Action(DELTA, -3),
+                 Action(GAMMA, 0),
+                 Action(GAMMA, 0),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 2, 2}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 1, 1}),
+                 Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 0}),
+                 Action({NEW_NODES, 0, 1}, {NEW_NODES, 1, 0}),
+                 Action({NEW_NODES, 0, 2}, {ACTIVE_PAIR, 0, 2}),
+                 Action({NEW_NODES, 1, 2}, {NEW_NODES, 2, 0}),
+                 Action({NEW_NODES, 2, 1}, {ACTIVE_PAIR, 0, 3}),
+                 Action(false),
+             });
 
-  add_actions(IF, BOOL, true,
-              {
-                  Action(DELETE, 0), // Not sure about this delete
-                  Action({VARS, 0, 0}, {VARS, 0, 2}),
-                  Action({NEW_NODES, 0, 0}, {VARS, 0, 1}),
-                  Action(true),
-                  Action(false),
-              });
-  add_actions(IF, BOOL, false,
-              {
-                  Action(DELETE, 0), // Not sure about this delete
-                  Action({VARS, 0, 1}, {VARS, 0, 2}),
-                  Action({NEW_NODES, 0, 0}, {VARS, 0, 0}),
-                  Action(true),
-                  Action(false),
-              });
+  addActions(IF, BOOL, true,
+             {
+                 Action(DELETE, 0), // Not sure about this delete
+                 Action({VARS, 0, 0}, {VARS, 0, 2}),
+                 Action({NEW_NODES, 0, 0}, {VARS, 0, 1}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(IF, BOOL, false,
+             {
+                 Action(DELETE, 0), // Not sure about this delete
+                 Action({VARS, 0, 1}, {VARS, 0, 2}),
+                 Action({NEW_NODES, 0, 0}, {VARS, 0, 0}),
+                 Action(true),
+                 Action(false),
+             });
 
-  add_actions(SLASH, CONT,
-              {Action(CONT_AUX, 0), Action(BAR_AUX, 0),
-               Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
-               Action({VARS, 0, 1}, {NEW_NODES, 0, 1}),
-               Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 1, 1}, {NEW_NODES, 0, 2}),
-               Action({VARS, 1, 2}, {ACTIVE_PAIR, 0, 0}),
-               Action({ACTIVE_PAIR, 0, 1}, {NEW_NODES, 1, 1}),
-               Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 0, 3}), Action(false)});
-  add_actions(CONT_AUX, SLASH,
-              {Action(COMP, 0), Action(BAR_AUX, 0),
-               Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
-               Action({VARS, 0, 2}, {NEW_NODES, 1, 1}),
-               Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
-               Action({VARS, 1, 1}, {NEW_NODES, 1, 0}), Action(true),
-               Action(false)});
+  addActions(SLASH, CONT,
+             {Action(CONT_AUX, 0), Action(BAR_AUX, 0),
+              Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 1}),
+              Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 1, 1}, {NEW_NODES, 0, 2}),
+              Action({VARS, 1, 2}, {ACTIVE_PAIR, 0, 0}),
+              Action({ACTIVE_PAIR, 0, 1}, {NEW_NODES, 1, 1}),
+              Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 0, 3}), Action(false)});
+  addActions(CONT_AUX, SLASH,
+             {Action(COMP, 0), Action(BAR_AUX, 0),
+              Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+              Action({VARS, 0, 2}, {NEW_NODES, 1, 1}),
+              Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+              Action({VARS, 1, 1}, {NEW_NODES, 1, 0}), Action(true),
+              Action(false)});
 
-  add_actions(SYM, COMP,
-              {Action(COMP_SYM, -1), Action({VARS, 0, 0}, {NEW_NODES, 0, 1}),
-               Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 1, 1}, {NEW_NODES, 0, 2}), Action(true),
-               Action(false)});
-  add_actions(BAR, COMP,
-              {Action(BOOL, 1), Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
-               Action({VARS, 1, 1}, {NEW_NODES, 0, 0}), Action(false)});
-  add_actions(END, COMP,
-              {Action(COMP_END, 0), Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 1, 1}, {NEW_NODES, 0, 1}), Action(true),
-               Action(false)});
+  addActions(SYM, COMP,
+             {Action(COMP_SYM, -1), Action({VARS, 0, 0}, {NEW_NODES, 0, 1}),
+              Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 1, 1}, {NEW_NODES, 0, 2}), Action(true),
+              Action(false)});
+  addActions(BAR, COMP,
+             {Action(BOOL, 1), Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+              Action({VARS, 1, 1}, {NEW_NODES, 0, 0}), Action(false)});
+  addActions(END, COMP,
+             {Action(COMP_END, 0), Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 1, 1}, {NEW_NODES, 0, 1}), Action(true),
+              Action(false)});
 
-  add_actions(COMP_SYM, SYM, true,
-              {Action(COMP, 0), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
-               Action({VARS, 1, 0}, {NEW_NODES, 0, 1}), Action(true),
-               Action(false)});
-  add_actions(COMP_SYM, SYM, false,
-              {Action(BOOL, 0), Action(DELETE, 0), Action(DELETE, 0),
-               Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
-               Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
-               Action({VARS, 1, 0}, {NEW_NODES, 2, 0}), Action(true),
-               Action(false)});
-  add_actions(COMP_SYM, END,
-              {Action(BOOL, 0), Action(DELETE, 0),
-               Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
-               Action({VARS, 0, 1}, {NEW_NODES, 0, 0}), Action(true),
-               Action(false)});
-  add_actions(COMP_SYM, BAR,
-              {
-                  Action(BOOL, 1),
-                  Action(SYM, -1),
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
-                  Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
-                  Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 1, 1}),
-                  Action(true),
-              });
+  addActions(COMP_SYM, SYM, true,
+             {Action(COMP, 0), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+              Action({VARS, 1, 0}, {NEW_NODES, 0, 1}), Action(true),
+              Action(false)});
+  addActions(COMP_SYM, SYM, false,
+             {Action(BOOL, 0), Action(DELETE, 0), Action(DELETE, 0),
+              Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
+              Action({VARS, 1, 0}, {NEW_NODES, 2, 0}), Action(true),
+              Action(false)});
+  addActions(COMP_SYM, END,
+             {Action(BOOL, 0), Action(DELETE, 0),
+              Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 0}), Action(true),
+              Action(false)});
+  addActions(COMP_SYM, BAR,
+             {
+                 Action(BOOL, 1),
+                 Action(SYM, -1),
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 1, 1}),
+                 Action(true),
+             });
 
-  add_actions(COMP_END, SYM,
-              {Action(BOOL, 0), Action(DELETE, 0),
-               Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-               Action({VARS, 1, 0}, {NEW_NODES, 1, 0}), Action(true),
-               Action(false)});
-  add_actions(
+  addActions(COMP_END, SYM,
+             {Action(BOOL, 0), Action(DELETE, 0),
+              Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+              Action({VARS, 1, 0}, {NEW_NODES, 1, 0}), Action(true),
+              Action(false)});
+  addActions(
       COMP_END, BAR,
       {Action(BOOL, 1), Action(END, 0), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
        Action({VARS, 1, 0}, {NEW_NODES, 1, 0}), Action(true), Action(false)});
-  add_actions(COMP_END, END,
-              {Action(BOOL, 1), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-               Action(true), Action(false)});
+  addActions(COMP_END, END,
+             {Action(BOOL, 1), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+              Action(true), Action(false)});
 
-  add_actions(BAR, BAR,
-              {
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
-                  Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
-              });
-  add_actions(BAR, SYM,
-              {
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
-                  Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
-              });
-  add_actions(BAR, END,
-              {
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action(true),
-              });
-  add_actions(BAR, BAR_AUX,
-              {
-                  Action({VARS, 0, 0}, {VARS, 1, 0}),
-                  Action(true),
-                  Action(false),
-              });
-  add_actions(BAR_AUX, SYM,
-              {
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
-                  Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
-              });
-  add_actions(BAR_AUX, END,
-              {
-                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                  Action(true),
-              });
+  addActions(BAR, BAR,
+             {
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
+             });
+  addActions(BAR, SYM,
+             {
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
+             });
+  addActions(BAR, END,
+             {
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action(true),
+             });
+  addActions(BAR, BAR_AUX,
+             {
+                 Action({VARS, 0, 0}, {VARS, 1, 0}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(BAR_AUX, SYM,
+             {
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
+             });
+  addActions(BAR_AUX, END,
+             {
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action(true),
+             });
 }
 
 } // namespace inet

@@ -1,7 +1,7 @@
 #ifndef __MAPPIN_PARSE_NODES__
 #define __MAPPIN_PARSE_NODES__
 
-#include <queue>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -43,12 +43,12 @@ typedef struct {
   Node *n2;
 } Interaction;
 
-extern std::queue<Interaction> interactions;
+extern std::deque<Interaction> interactions;
 extern std::vector<Action> *actions_map;
 
 void init();
 
-std::vector<Action> &get_actions(node_kind, node_kind, bool);
+std::vector<Action> &getActions(node_kind, node_kind, bool);
 } // namespace inet
 
 #endif

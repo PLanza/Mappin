@@ -1,5 +1,7 @@
 #include <cassert>
+#include <deque>
 #include <iostream>
+#include <memory>
 
 #include "inet.hpp"
 #include "nodes.hpp"
@@ -7,7 +9,7 @@
 
 namespace inet {
 
-Node *token_to_node(grammar::Token token) {
+Node *tokenToNode(grammar::Token token) {
   switch (token.kind) {
   // Converts a token's ID to a value for SYM nodes
   case grammar::TERM:
@@ -22,7 +24,7 @@ Node *token_to_node(grammar::Token token) {
   }
 }
 
-Node *get_stack_action_network(grammar::StackAction &action) {
+Node *getStackActionNetwork(grammar::StackAction &action) {
   Node *product = newNode(GAMMA, 1);
 
   // Create reduction rule chains
@@ -38,12 +40,12 @@ Node *get_stack_action_network(grammar::StackAction &action) {
   connect(slash, 0, product, 2);
 
   Node *lhs_start =
-      (action.lhs.size() == 0) ? newNode(END, 0) : token_to_node(action.lhs[0]);
+      (action.lhs.size() == 0) ? newNode(END, 0) : tokenToNode(action.lhs[0]);
 
   Node *lhs_end = lhs_start;
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.lhs.size(); i++) {
-    Node *temp = token_to_node(action.lhs[i]);
+    Node *temp = tokenToNode(action.lhs[i]);
     connect(lhs_end, 1, temp, 0);
     lhs_end = temp;
   }
@@ -55,12 +57,12 @@ Node *get_stack_action_network(grammar::StackAction &action) {
   }
 
   Node *rhs_start =
-      (action.rhs.size() == 0) ? newNode(END, 0) : token_to_node(action.rhs[0]);
+      (action.rhs.size() == 0) ? newNode(END, 0) : tokenToNode(action.rhs[0]);
 
   Node *rhs_end = rhs_start;
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.rhs.size(); i++) {
-    Node *temp = token_to_node(action.rhs[i]);
+    Node *temp = tokenToNode(action.rhs[i]);
     connect(rhs_end, 1, temp, 0);
     rhs_end = temp;
   }
@@ -86,7 +88,7 @@ Node *get_stack_action_network(grammar::StackAction &action) {
 }
 
 // Return value is fold_xs' port #3
-Node *create_compose_network(Node *xs, Node *ys) {
+Node *createComposeNetwork(Node *xs, Node *ys) {
   // If passed in later layers of compositions
   Node *fold_xs = newNode(FOLD, 0);
   connect(fold_xs, 1, newNode(NIL, 0), 0);
@@ -154,15 +156,15 @@ Node *create_compose_network(Node *xs, Node *ys) {
 }
 
 // Returns the output node
-Node *create_parser_network(std::vector<grammar::StackAction> *stack_actions,
-                            std::vector<grammar::Token> input) {
+Node *createParserNetwork(std::vector<grammar::StackAction> *stack_actions,
+                          std::vector<grammar::Token> input) {
 
   std::vector<Node *> input_action_lists;
   for (grammar::Token token : input) {
     std::vector<grammar::StackAction> &actions = stack_actions[token.id];
     Node *tail = newNode(NIL, 0);
     for (grammar::StackAction &action : actions) {
-      Node *action_net = get_stack_action_network(action);
+      Node *action_net = getStackActionNetwork(action);
       Node *cons = newNode(CONS, 0);
       connect(cons, 2, tail, 0);
       connect(cons, 1, action_net, 0);
@@ -176,7 +178,7 @@ Node *create_parser_network(std::vector<grammar::StackAction> *stack_actions,
     std::vector<Node *> curr_layer;
     for (size_t i = 0; i < prev_layer.size() - 1; i += 2) {
       curr_layer.push_back(
-          create_compose_network(prev_layer[i], prev_layer[i + 1]));
+          createComposeNetwork(prev_layer[i], prev_layer[i + 1]));
     }
     if (prev_layer.size() % 2 == 1)
       curr_layer.push_back(prev_layer.back());
@@ -188,6 +190,64 @@ Node *create_parser_network(std::vector<grammar::StackAction> *stack_actions,
   connect(out, 1, prev_layer[0], 3);
 
   return out;
+}
+
+void traverseRules(Node *cons, std::deque<uint32_t> &stack,
+                   std::unique_ptr<grammar::Grammar> &grammar) {
+  if (cons->kind == CONS) {
+    traverseRules(cons->ports[1].node, stack, grammar);
+    traverseRules(cons->ports[2].node, stack, grammar);
+    return;
+  }
+
+  while (cons->kind == RULE) {
+    auto const rule = grammar->getRule(cons->value);
+    grammar::Token const &head = std::get<0>(rule);
+    std::cout << grammar->getNonTerminalString(head.id);
+    std::vector<grammar::Token> const &rhs = std::get<1>(rule);
+
+    unsigned int nonterms = 0;
+    for (auto const &token : rhs) {
+      if (token.kind == grammar::NON_TERM)
+        nonterms++;
+    }
+    if (nonterms == 0) {
+      stack.front()--;
+      while (stack.front() == 0) {
+        std::cout << " ]";
+        stack.pop_front();
+        stack.front()--;
+      }
+    } else {
+      std::cout << "[ ";
+      stack.push_front(nonterms);
+    }
+
+    cons = cons->ports[1].node;
+  }
+}
+
+void getParse(Node *product, std::unique_ptr<grammar::Grammar> &grammar) {
+  // For each parse, check the stack action for incomplete parses
+  Node *stack_action = product->ports[2].node;
+  if (stack_action->ports[1].node->kind != END &&
+      stack_action->ports[2].node->kind != END)
+    return;
+
+  // If valid then traverse the reduction rules and print parse
+  Node *cons = product->ports[1].node;
+  std::deque<uint32_t> stack;
+  traverseRules(cons, stack, grammar);
+  std::cout << std::endl;
+}
+
+void getParses(Node *output, std::unique_ptr<grammar::Grammar> &grammar) {
+  // Traverse the list, each element a different parse
+  Node *cons = output->ports[1].node;
+  while (cons->kind == CONS) {
+    getParse(cons->ports[1].node, grammar);
+    cons = cons->ports[2].node;
+  }
 }
 
 } // namespace inet

@@ -78,8 +78,16 @@ std::vector<StackAction> *Grammar::getStackActions() {
   return this->stack_actions;
 }
 
-std::string *Grammar::getTerminals() { return this->terminals; }
-std::string *Grammar::getNonTerminals() { return this->nonterminals; }
+std::tuple<Token, std::vector<Token>, std::size_t> &
+Grammar::getRule(size_t rule) {
+  return this->rules[rule];
+}
+std::string &Grammar::getTerminalString(uint32_t id) {
+  return this->terminals[id];
+}
+std::string &Grammar::getNonTerminalString(uint32_t id) {
+  return this->nonterminals[id];
+}
 
 std::vector<Token> Grammar::stringToTokens(std::string input) {
   std::vector<Token> tokens = {{TERM, this->term_id_map["<"]}};

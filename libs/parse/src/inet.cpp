@@ -1,6 +1,6 @@
 #include <cstddef>
 #include <cstdlib>
-#include <iostream>
+// #include <iostream>
 #include <vector>
 
 #include "inet.hpp"
@@ -32,7 +32,7 @@ void connect(Node *n1, std::size_t p1, Node *n2, std::size_t p2) {
 
   // Check for interaction
   if (p1 == 0 && p2 == 0)
-    interactions.push({n1, n2}); // Add to interaction queue
+    interactions.push_back({n1, n2}); // Add to interaction queue
 }
 
 void freeNode(Node *n) {
@@ -53,18 +53,18 @@ Action::Action(Connect c1, Connect c2) : kind(CONNECT) {
 Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
 void interact() {
-  std::cout << interactions.size() << " active interactions" << std::endl;
+  // std::cout << interactions.size() << " active interactions" << std::endl;
 
   Interaction interaction = interactions.front();
-  interactions.pop();
+  interactions.pop_front();
   Node *left = interaction.n1;
   Node *right = interaction.n2;
 
-  std::cout << "Performing -| " << left->kind << " >-< " << right->kind
-            << " |- interaction" << std::endl;
+  // std::cout << "Performing -| " << left->kind << " >-< " << right->kind
+  //           << " |- interaction" << std::endl;
 
   std::vector<Action> &actions =
-      get_actions(left->kind, right->kind, left->value == right->value);
+      getActions(left->kind, right->kind, left->value == right->value);
 
   if (actions.empty())
     return;
