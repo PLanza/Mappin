@@ -5,11 +5,13 @@
 
 namespace inet {
 
-int node_arities[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0,
-                                3, 3, 2, 2, 2, 1, 1, 1, 0, 1};
+int node_arities[NODE_KINDS] = {
+    1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2, 1, 1, 1, 0, 1, 1,
+};
 std::string node_strings[NODE_KINDS] = {
-    "out", "DEL", "δ", "γ", "[]",  "::",  "@", "fold", "if", "bool",
-    "k",   "k\'", "/", "○", "○_X", "○_$", "-", "-\'",  "$",  "X"};
+    "out", "DEL", "δ", "γ",   "[]",  "::", "@",   "fold", "if", "bool", "k",
+    "k\'", "/",   "○", "○_X", "○_$", "-",  "-\'", "$",    "X",  "R",
+};
 
 std::queue<Interaction> interactions;
 // (Node × Node × bool) -> Action[]
@@ -74,7 +76,7 @@ void add_actions(NodeKind n1, NodeKind n2, bool matches,
 
 void add_delete_actions() {
   // Assume DELETE on left side
-  for (unsigned int kind = DELETE; kind <= SYM; kind++) {
+  for (unsigned int kind = DELETE; kind < NODE_KINDS; kind++) {
     std::vector<Action> actions;
 
     for (int i = 1; i < node_arities[kind]; i++)
@@ -116,7 +118,7 @@ void add_delta_actions() {
               });
 
   // Assume DELTA on left side
-  for (unsigned int kind = GAMMA; kind <= SYM; kind++) {
+  for (unsigned int kind = GAMMA; kind < NODE_KINDS; kind++) {
     std::vector<Action> actions;
     actions.push_back(Action((node_kind)kind, -2));
 
@@ -151,7 +153,7 @@ void init() {
   add_delete_actions();
   add_delta_actions();
 
-  add_actions(GAMMA, GAMMA,
+  add_actions(GAMMA, GAMMA, true,
               {
                   Action({VARS, 0, 0}, {VARS, 1, 0}),
                   Action({VARS, 0, 1}, {VARS, 1, 1}),

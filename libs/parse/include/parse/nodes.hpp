@@ -9,13 +9,13 @@
 
 namespace inet {
 
-const int NODE_KINDS = 20;
+const int NODE_KINDS = 21;
 
 enum NodeKind {
   OUTPUT,
   DELETE,
   DELTA,
-  GAMMA,
+  GAMMA, // γ_0 is regular γ, γ_1 is ×
   NIL,
   CONS,
   APPEND,
@@ -31,7 +31,8 @@ enum NodeKind {
   BAR,
   BAR_AUX,
   END,
-  SYM
+  SYM,
+  RULE, // Could use SYM for RULE
 };
 
 extern int node_arities[NODE_KINDS];

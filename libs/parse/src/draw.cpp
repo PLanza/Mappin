@@ -47,6 +47,8 @@ void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
     } else if (node->kind == DELTA) {
       opts.labels[graph_node] = node_strings[node->kind];
       opts.labels[graph_node] += std::to_string(node->value % 100);
+    } else if (node->kind == RULE) {
+      opts.labels[graph_node] = std::to_string(node->value);
     } else {
       opts.labels[graph_node] = node_strings[node->kind];
     }

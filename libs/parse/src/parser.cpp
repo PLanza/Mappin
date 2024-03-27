@@ -23,7 +23,19 @@ Node *token_to_node(grammar::Token token) {
 }
 
 Node *get_stack_action_network(grammar::StackAction &action) {
+  Node *product = newNode(GAMMA, 1);
+
+  // Create reduction rule chains
+  Node *prev_rule = product;
+  for (uint32_t rule : action.reduce_rules) {
+    Node *temp = newNode(RULE, rule);
+    connect(prev_rule, 1, temp, 0);
+    prev_rule = temp;
+  }
+  connect(prev_rule, 1, newNode(END, 0), 0);
+
   Node *slash = newNode(SLASH, 0);
+  connect(slash, 0, product, 2);
 
   Node *lhs_start =
       (action.lhs.size() == 0) ? newNode(END, 0) : token_to_node(action.lhs[0]);
@@ -70,7 +82,7 @@ Node *get_stack_action_network(grammar::StackAction &action) {
 
   connect(slash, 1, lhs_start, 0);
   connect(slash, 2, rhs_start, 0);
-  return slash;
+  return product;
 }
 
 // Return value is fold_xs' port #3
@@ -92,37 +104,51 @@ Node *create_compose_network(Node *xs, Node *ys) {
   else if (ys->kind == FOLD)
     connect(ys, 3, fold_ys, 0);
 
-  Node *gamma_1 = newNode(GAMMA, 0);
-  connect(gamma_1, 0, fold_xs, 2);
-  Node *gamma_2 = newNode(GAMMA, 0);
-  connect(gamma_2, 0, gamma_1, 2);
+  Node *gamma_x = newNode(GAMMA, 0);
+  connect(gamma_x, 0, fold_xs, 2);
+  Node *gamma_acc_xs = newNode(GAMMA, 0);
+  connect(gamma_acc_xs, 0, gamma_x, 2);
 
   Node *append = newNode(APPEND, 0);
-  connect(append, 0, gamma_2, 1);
+  connect(append, 0, gamma_acc_xs, 1);
   connect(append, 1, fold_ys, 3);
-  connect(append, 2, gamma_2, 2);
+  connect(append, 2, gamma_acc_xs, 2);
 
-  Node *gamma_3 = newNode(GAMMA, 0);
-  connect(gamma_3, 0, fold_ys, 2);
-  Node *gamma_4 = newNode(GAMMA, 0);
-  connect(gamma_4, 0, gamma_3, 2);
+  Node *gamma_y = newNode(GAMMA, 0);
+  connect(gamma_y, 0, fold_ys, 2);
+  Node *gamma_acc_ys = newNode(GAMMA, 0);
+  connect(gamma_acc_ys, 0, gamma_y, 2);
 
-  Node *delta = newNode(DELTA, 1);
-  connect(delta, 0, gamma_4, 1);
+  Node *copy_acc_ys = newNode(DELTA, 1);
+  connect(copy_acc_ys, 0, gamma_acc_ys, 1);
 
   Node *if_ = newNode(IF, 1);
-  connect(if_, 2, delta, 2);
-  connect(if_, 3, gamma_4, 2);
+  connect(if_, 2, copy_acc_ys, 2);
+  connect(if_, 3, gamma_acc_ys, 2);
 
-  Node *cons = newNode(CONS, 0);
-  connect(cons, 0, if_, 1);
-  connect(cons, 2, delta, 1);
+  Node *action_cons = newNode(CONS, 0);
+  connect(action_cons, 0, if_, 1);
+  connect(action_cons, 2, copy_acc_ys, 1);
 
   Node *cont = newNode(CONT, 0);
-  connect(cont, 0, gamma_1, 1);
-  connect(cont, 1, gamma_3, 1);
   connect(cont, 2, if_, 0);
-  connect(cont, 3, cons, 1);
+
+  Node *prod_x = newNode(GAMMA, 1);
+  connect(prod_x, 0, gamma_x, 1);
+  connect(prod_x, 2, cont, 0);
+
+  Node *prod_y = newNode(GAMMA, 1);
+  connect(prod_y, 0, gamma_y, 1);
+  connect(prod_y, 2, cont, 1);
+
+  Node *rule_cons = newNode(CONS, 0);
+  connect(rule_cons, 1, prod_x, 1);
+  connect(rule_cons, 2, prod_y, 1);
+
+  Node *prod_result = newNode(GAMMA, 1);
+  connect(prod_result, 0, action_cons, 1);
+  connect(prod_result, 1, rule_cons, 0);
+  connect(prod_result, 2, cont, 3);
 
   return fold_xs;
 }
