@@ -11,7 +11,7 @@ public:
   LLParseTable(uint32_t, uint32_t, grammar_rules &, const char *);
   ~LLParseTable();
 
-  ParseAction getAction(uint32_t, uint32_t) override;
+  ParseAction getAction(uint32_t, uint32_t) const override;
 
 private:
   ParseAction *table;
@@ -24,13 +24,18 @@ public:
   LLGrammar(const char *);
   ~LLGrammar();
 
+  void finalize() override;
   void makeParseTable() override;
   void generateStackActions() override;
   void printParseTable() override;
 
+protected:
+  LLParseTable *getParseTable() override;
+
 private:
   std::pair<std::vector<Token>, std::vector<uint32_t>> findTerminal(uint32_t,
                                                                     uint32_t);
+  LLParseTable *parse_table;
 };
 } // namespace grammar
 #endif

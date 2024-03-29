@@ -1,0 +1,5 @@
+$e := e MUL b
+e := e ADD b 
+e := b
+b := ZERO 
+b := ONE 

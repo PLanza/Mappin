@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "grammar/llgrammar.hpp"
+#include "grammar/lrgrammar.hpp"
 #include "grammar_parser.hpp"
 
 class ExpectedNonTerminalException : public MappinException {
@@ -160,7 +161,7 @@ std::unique_ptr<grammar::Grammar> GrammarParser<G>::parseGrammar() {
   while (!this->eof()) {
     this->parseGrammarDefinition();
   }
-  this->grammar->fillStringArrays();
+  this->grammar->finalize();
 
   std::cout << "Done!" << std::endl;
   return std::move(this->grammar);
@@ -231,3 +232,4 @@ std::vector<grammar::Token> GrammarParser<G>::parseGrammarRHS() {
 }
 
 template class GrammarParser<grammar::LLGrammar>;
+template class GrammarParser<grammar::LR0Grammar>;

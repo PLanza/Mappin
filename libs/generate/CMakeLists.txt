@@ -15,6 +15,7 @@ set(SOURCE
     ${SOURCE_DIR}/grammar_parser.cpp
     ${SOURCE_DIR}/grammar.cpp
     ${SOURCE_DIR}/llgrammar.cpp
+    ${SOURCE_DIR}/lrgrammar.cpp
 )
 
 set(HEADERS_DIR
@@ -24,10 +25,15 @@ set(HEADERS
   ${HEADERS_DIR}/grammar_parser.hpp
   ${HEADERS_DIR}/grammar.hpp
   ${HEADERS_DIR}/grammar/llgrammar.hpp
+  ${HEADERS_DIR}/grammar/lrgrammar.hpp
 )
+
+find_package(Boost)
+include_directories(${Boost_INCLUDE_DIR})
 
 set(LIBRARIES
   util
+  ${Boost_LIBRARIES}
 )
 
 project(${PROJECT_NAME}

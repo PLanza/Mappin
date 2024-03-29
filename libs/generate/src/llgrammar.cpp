@@ -12,10 +12,14 @@ LLGrammar::~LLGrammar() {
   delete[] this->stack_actions;
 }
 
+void LLGrammar::finalize() { this->fillStringArrays(); }
+
 void LLGrammar::makeParseTable() {
   this->parse_table = new LLParseTable(this->terms_size, this->nonterms_size,
                                        this->rules, this->file_name);
 }
+
+LLParseTable *LLGrammar::getParseTable() { return this->parse_table; }
 
 void LLGrammar::generateStackActions() {
   if (this->parse_table == nullptr) {
@@ -48,6 +52,7 @@ void LLGrammar::generateStackActions() {
       switch (action.kind) {
       case EMPTY:
       case SHIFT:
+      case ACCEPT:
         // Shouldn't reach here for LL Grammar
         break;
       case REDUCE: {
@@ -190,6 +195,10 @@ void LLGrammar::printParseTable() {
         std::cout << "R" << action.reduce_rule << "       ";
         break;
       }
+      case grammar::ACCEPT: {
+        std::cout << "acc      ";
+        break;
+      }
       }
     }
     std::cout << std::endl;
@@ -197,7 +206,7 @@ void LLGrammar::printParseTable() {
   std::cout << std::endl;
 }
 
-ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) {
+ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) const {
   return this->table[nonterm * this->cols + term];
 }
 

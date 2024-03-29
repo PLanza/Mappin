@@ -20,9 +20,8 @@ class AmbiguousGrammarException : public MappinException {
 };
 
 Grammar::Grammar(const char *file_name)
-    : file_name(file_name), rules({}), parse_table(nullptr),
-      stack_actions(nullptr), nonterms_size(0), terminals(nullptr),
-      nonterminals(nullptr), nonterm_id_map({}) {
+    : file_name(file_name), rules({}), stack_actions(nullptr), nonterms_size(0),
+      terminals(nullptr), nonterminals(nullptr), nonterm_id_map({}) {
   this->terms_size = 0;
   this->term_id_map = {};
 
@@ -31,7 +30,7 @@ Grammar::Grammar(const char *file_name)
 }
 
 Token Grammar::newToken(TokenKind kind, std::string name) {
-  if (this->parse_table != nullptr) {
+  if (this->getParseTable() != nullptr) {
     std::cerr << "ERROR: Attempted to add token to grammar after it was locked."
               << std::endl;
   }
@@ -60,7 +59,7 @@ Token Grammar::newNonTerminal(std::string name) {
 
 void Grammar::addRule(std::string name, std::vector<Token> rhs, bool start,
                       std::size_t line) {
-  if (this->parse_table != nullptr) {
+  if (this->getParseTable() != nullptr) {
     std::cerr << "ERROR: Attempted to add rule to grammar after it was locked."
               << std::endl;
     return;

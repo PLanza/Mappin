@@ -1,6 +1,8 @@
 #ifndef __MAPPIN_GEN_GRAMMAR__
 #define __MAPPIN_GEN_GRAMMAR__
 
+#include <boost/container_hash/extensions.hpp>
+#include <boost/container_hash/hash_fwd.hpp>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -15,12 +17,16 @@ enum TokenKind { TERM, NON_TERM, ANY, REST };
 struct Token {
   TokenKind kind;
   uint32_t id;
+
+  bool operator==(grammar::Token const &other) const {
+    return this->id == other.id && this->kind == other.kind;
+  }
 };
 
 const Token ANY_TOKEN = Token{ANY, 0};
 const Token REST_TOKEN = Token{REST, 0};
 
-enum ParseActionKind { EMPTY, SHIFT, REDUCE };
+enum ParseActionKind { EMPTY, SHIFT, REDUCE, ACCEPT };
 
 struct ParseAction {
   ParseActionKind kind;
@@ -35,7 +41,7 @@ struct StackAction {
 
 class ParseTable {
 public:
-  virtual ParseAction getAction(uint32_t, uint32_t) = 0;
+  virtual ParseAction getAction(uint32_t, uint32_t) const = 0;
   virtual ~ParseTable() = default;
 };
 
@@ -56,7 +62,7 @@ public:
   Token newToken(TokenKind, std::string);
 
   void addRule(std::string, std::vector<Token>, bool, std::size_t);
-  void fillStringArrays();
+  virtual void finalize() = 0;
   virtual void makeParseTable() = 0;
   virtual void generateStackActions() = 0;
 
@@ -87,10 +93,11 @@ protected:
   std::string *nonterminals;
 
   grammar_rules rules;
-  ParseTable *parse_table;
+  virtual ParseTable *getParseTable() = 0;
   std::vector<StackAction> *stack_actions;
 
-private:
+  void fillStringArrays();
+
   std::unordered_map<std::string, uint32_t> term_id_map;
   std::unordered_map<std::string, uint32_t> nonterm_id_map;
 
@@ -99,5 +106,16 @@ private:
 };
 
 } // namespace grammar
+
+namespace boost {
+template <> struct hash<grammar::Token> {
+  size_t operator()(const grammar::Token &t) const {
+    size_t hash = 0;
+    boost::hash_combine(hash, t.kind);
+    boost::hash_combine(hash, t.id);
+    return hash;
+  }
+};
+} // namespace boost
 
 #endif
