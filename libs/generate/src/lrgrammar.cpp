@@ -226,6 +226,11 @@ LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
 
   this->goto_table = new int[item_sets.size() * nonterminals];
   this->action_table = new ParseAction[item_sets.size() * terminals];
+  for (int i = 0; i < this->states; i++) {
+    for (int j = 0; j < this->terms; j++) {
+      action_table[i * this->states + j] = ParseAction{EMPTY, 0};
+    }
+  }
 
   for (size_t state = 0; state < trans_table.size(); state++) {
     // Add the Shift actions
@@ -241,9 +246,12 @@ LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
   }
   // Add Reduce actions
   for (auto const &[state, action] : reduce_states) {
-    for (size_t token = 0; token < terminals; token++)
-      // TODO: Check for ambiguities
+    for (size_t token = 0; token < terminals; token++) {
+      if (action_table[state * terminals + token].kind != EMPTY)
+        throw exceptionOnLine(AMBIGUOUS_GRAMMAR, file_name,
+                              std::get<2>(rules[action.reduce_rule]));
       this->action_table[state * terminals + token] = action;
+    }
   }
   // Add Accept actions
   for (int const &state : end_states)
