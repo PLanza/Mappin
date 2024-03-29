@@ -18,14 +18,14 @@ struct Item {
 
 class LRParseTable : public ParseTable {
 public:
-  LRParseTable(uint32_t, uint32_t, grammar_rules const &, bool, const char *);
+  LRParseTable(uint32_t, uint32_t, grammar_rules const &, uint32_t,
+               const char *);
   ~LRParseTable();
 
   uint32_t states;
 
   ParseAction getAction(uint32_t, uint32_t) const override;
-  ParseAction getAction(size_t, Token) const;
-  int getGoto(size_t, uint32_t) const;
+  int getGoto(uint32_t, uint32_t) const;
 
 private:
   ParseAction *action_table;
