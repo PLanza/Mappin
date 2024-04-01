@@ -16,6 +16,18 @@ struct Item {
   }
 };
 
+struct ParseTree {
+  TokenKind kind;
+  uint32_t value;
+  ParseTree **children = nullptr;
+
+  ParseTree(TokenKind kind, uint32_t value, size_t size)
+      : kind(kind), value(value) {
+    this->children = new ParseTree *[size];
+  }
+  ~ParseTree() { delete[] children; }
+};
+
 class LRParseTable : public ParseTable {
 public:
   LRParseTable(uint32_t, uint32_t, grammar_rules const &, uint32_t,
@@ -42,16 +54,18 @@ public:
   void finalize() override;
   void makeParseTable() override;
   void generateStackActions() override;
-  void getParses(inet::Node *) override;
   void printParseTable() override;
   void printStackActions() override;
+  void printParseTree(ParseTree *);
 
 protected:
   LRParseTable *getParseTable() override;
+  void getParse(inet::Node *) override;
 
 private:
   void getStackActionClosure(uint32_t);
   LRParseTable *parse_table = nullptr;
+  void traverseRules(inet::Node *, std::deque<ParseTree *> &);
 };
 } // namespace grammar
 

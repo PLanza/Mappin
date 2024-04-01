@@ -4,6 +4,7 @@
 #include <string>
 
 #include "grammar.hpp"
+#include "parse/nodes.hpp"
 #include "util/util.hpp"
 
 namespace grammar {
@@ -197,6 +198,15 @@ void Grammar::fillStringArrays() {
   this->nonterminals = new std::string[this->nonterms_size];
   for (const auto &[name, nt_id] : this->nonterm_id_map)
     this->nonterminals[nt_id] = name;
+}
+
+void Grammar::getParses(inet::Node *output) {
+  // Traverse the list, each element a different parse
+  inet::Node *cons = output->ports[1].node;
+  while (cons->kind == inet::CONS) {
+    this->getParse(cons->ports[1].node);
+    cons = cons->ports[2].node;
+  }
 }
 
 Grammar::~Grammar() {

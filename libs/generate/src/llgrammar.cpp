@@ -221,6 +221,20 @@ ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) const {
 
 LLParseTable::~LLParseTable() { delete[] this->table; }
 
+void LLGrammar::getParse(inet::Node *product) {
+  // For each parse, check the stack action for incomplete parses
+  inet::Node *stack_action = product->ports[2].node;
+  if (stack_action->ports[1].node->kind != inet::END &&
+      stack_action->ports[2].node->kind != inet::END)
+    return;
+
+  // If valid then traverse the reduction rules and print parse
+  inet::Node *cons = product->ports[1].node;
+  std::deque<uint32_t> stack;
+  this->traverseRules(cons, stack);
+  std::cout << std::endl;
+}
+
 void LLGrammar::traverseRules(inet::Node *cons, std::deque<uint32_t> &stack) {
   if (cons->kind == inet::CONS) {
     this->traverseRules(cons->ports[1].node, stack);
@@ -229,7 +243,7 @@ void LLGrammar::traverseRules(inet::Node *cons, std::deque<uint32_t> &stack) {
   }
 
   while (cons->kind == inet::RULE) {
-    auto const rule = this->getRule(cons->value);
+    auto const &rule = this->getRule(cons->value);
     grammar::Token const &head = std::get<0>(rule);
     std::cout << this->getNonTerminalString(head.id);
     std::vector<grammar::Token> const &rhs = std::get<1>(rule);
@@ -255,26 +269,4 @@ void LLGrammar::traverseRules(inet::Node *cons, std::deque<uint32_t> &stack) {
   }
 }
 
-void LLGrammar::getParse(inet::Node *product) {
-  // For each parse, check the stack action for incomplete parses
-  inet::Node *stack_action = product->ports[2].node;
-  if (stack_action->ports[1].node->kind != inet::END &&
-      stack_action->ports[2].node->kind != inet::END)
-    return;
-
-  // If valid then traverse the reduction rules and print parse
-  inet::Node *cons = product->ports[1].node;
-  std::deque<uint32_t> stack;
-  this->traverseRules(cons, stack);
-  std::cout << std::endl;
-}
-
-void LLGrammar::getParses(inet::Node *output) {
-  // Traverse the list, each element a different parse
-  inet::Node *cons = output->ports[1].node;
-  while (cons->kind == inet::CONS) {
-    this->getParse(cons->ports[1].node);
-    cons = cons->ports[2].node;
-  }
-}
 } // namespace grammar

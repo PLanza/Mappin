@@ -1,8 +1,10 @@
 #include "grammar/lrgrammar.hpp"
 #include "grammar.hpp"
+#include "parse/nodes.hpp"
 #include <algorithm>
 #include <boost/container_hash/extensions.hpp>
 #include <cstddef>
+#include <deque>
 #include <iostream>
 #include <tuple>
 #include <unordered_set>
@@ -158,7 +160,8 @@ bool mergeStackActions(StackAction &left_action, StackAction right_action) {
                             left_action.rhs.end());
   }
   left_action.rhs = right_action.rhs;
-  left_action.reduce_rules.insert(left_action.reduce_rules.end(),
+  // Not sure this works for reduce chains longer than 3
+  left_action.reduce_rules.insert(left_action.reduce_rules.begin(),
                                   right_action.reduce_rules.begin(),
                                   right_action.reduce_rules.end());
   return true;
@@ -236,7 +239,69 @@ void LR0Grammar::generateStackActions() {
   }
 }
 
-void LR0Grammar::getParses(inet::Node *) {}
+void LR0Grammar::traverseRules(inet::Node *cons,
+                               std::deque<ParseTree *> &stack) {
+  if (cons->kind == inet::CONS) {
+    this->traverseRules(cons->ports[1].node, stack);
+    this->traverseRules(cons->ports[2].node, stack);
+  } else if (cons->kind == inet::RULE) {
+    this->traverseRules(cons->ports[1].node, stack);
+    auto const &[head, rhs, _] = this->getRule(cons->value);
+    ParseTree *tree = new ParseTree(NON_TERM, cons->value, rhs.size());
+
+    for (size_t i = 0; i < rhs.size(); i++) {
+      tree->children[i] = stack.back();
+      stack.pop_back();
+    }
+    stack.push_back(tree);
+  } else if (cons->kind == inet::END) {
+    stack.push_back(new ParseTree(TERM, 0, 0));
+  }
+}
+
+void LR0Grammar::getParse(inet::Node *product) {
+  // For each parse, check the stack action for incomplete parses
+  inet::Node *stack_action = product->ports[2].node;
+  if (stack_action->ports[1].node->kind != inet::END &&
+      stack_action->ports[2].node->kind != inet::END)
+    return;
+
+  // If valid then traverse the reduction rules and print parse
+  inet::Node *cons = product->ports[1].node;
+  std::deque<ParseTree *> stack;
+  this->traverseRules(cons, stack);
+
+  auto const &[head, rhs, _] = this->getRule(this->start_rule);
+  ParseTree *tree = new ParseTree(NON_TERM, this->start_rule, rhs.size());
+
+  for (size_t i = 0; i < rhs.size(); i++) {
+    tree->children[i] = stack.back();
+    stack.pop_back();
+  }
+
+  this->printParseTree(tree);
+  std::cout << std::endl;
+  delete tree;
+  for (ParseTree *tree : stack) {
+    delete tree;
+  }
+
+  // return tree;
+}
+
+void LR0Grammar::printParseTree(ParseTree *tree) {
+  if (tree->kind == TERM) {
+    std::cout << "_";
+  } else {
+    auto const &[head, rhs, _] = this->getRule(tree->value);
+    std::cout << this->getNonTerminalString(head.id) << "[ ";
+    for (size_t i = 1; i <= rhs.size(); i++) {
+      this->printParseTree(tree->children[rhs.size() - i]);
+      std::cout << " ";
+    }
+    std::cout << "]";
+  }
+}
 
 void getSetClosure(grammar_rules const &rules,
                    std::unordered_set<Item, boost::hash<Item>> &set) {

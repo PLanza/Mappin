@@ -98,7 +98,7 @@ public:
 
   std::vector<Token> stringToTokens(std::string);
 
-  virtual void getParses(inet::Node *) = 0;
+  void getParses(inet::Node *);
 
   void printGrammar();
   void printStackState(StackState, bool);
@@ -122,16 +122,16 @@ protected:
   std::string *nonterminals = nullptr;
 
   grammar_rules rules;
-  virtual ParseTable *getParseTable() = 0;
   std::vector<StackAction> *stack_actions = nullptr;
-
-  void fillStringArrays();
 
   std::unordered_map<std::string, uint32_t> term_id_map;
   std::unordered_map<std::string, uint32_t> nonterm_id_map;
 
   Token newTerminal(std::string);
   Token newNonTerminal(std::string);
+  void fillStringArrays();
+  virtual ParseTable *getParseTable() = 0;
+  virtual void getParse(inet::Node *) = 0;
 };
 
 } // namespace grammar

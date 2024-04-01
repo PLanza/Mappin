@@ -31,16 +31,14 @@ public:
   void printParseTable() override;
   void printStackActions() override;
 
-  void getParses(inet::Node *) override;
-
 protected:
   LLParseTable *getParseTable() override;
+  void getParse(inet::Node *) override;
 
 private:
+  void traverseRules(inet::Node *, std::deque<uint32_t> &);
   std::pair<std::deque<StackState>, std::deque<uint32_t>>
       findTerminal(uint32_t, uint32_t);
-  void getParse(inet::Node *parse);
-  void traverseRules(inet::Node *, std::deque<uint32_t> &);
   LLParseTable *parse_table = nullptr;
 };
 } // namespace grammar
