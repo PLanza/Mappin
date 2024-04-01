@@ -22,7 +22,7 @@ private:
   Position pos;
   std::string curr_line;
   size_t line_offset;
-  std::unique_ptr<grammar::Grammar> grammar;
+  std::unique_ptr<grammar::Grammar> grammar = nullptr;
 
   bool eof();
   bool endOfLine();

@@ -33,6 +33,7 @@ include_directories(${Boost_INCLUDE_DIR})
 
 set(LIBRARIES
   util
+  parse
   ${Boost_LIBRARIES}
 )
 

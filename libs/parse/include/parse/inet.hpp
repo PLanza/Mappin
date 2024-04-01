@@ -6,21 +6,21 @@
 #include <unordered_set>
 
 namespace inet {
-  
+
 typedef uint32_t node_kind;
 
 struct Node;
 
 // A node's port that connecting to some node `node` at its port `port`
 struct Port {
-  Node *node;
+  Node *node = nullptr;
   size_t port;
 };
 
 // Will need to extend to include a value field
 struct Node {
   node_kind kind;
-  Port *ports;
+  Port *ports = nullptr;
   uint32_t value;
 };
 
@@ -50,7 +50,8 @@ typedef struct {
 
 typedef struct {
   node_kind kind;
-  int32_t value; // -1 means copy the left node's value, -2 means copy the right node's value
+  int32_t value; // -1 means copy the left node's value, -2 means copy the right
+                 // node's value
 } NewNodeAction;
 
 struct Action {
@@ -67,6 +68,6 @@ struct Action {
 };
 
 void interact();
-}
+} // namespace inet
 
 #endif

@@ -2,7 +2,7 @@
 #define __MAPPIN_GEN_LRGRAMMAR__
 
 #include "../grammar.hpp"
-#include <utility>
+#include "parse/inet.hpp"
 
 namespace grammar {
 
@@ -28,8 +28,8 @@ public:
   int getGoto(uint32_t, uint32_t) const;
 
 private:
-  ParseAction *action_table;
-  int *goto_table;
+  ParseAction *action_table = nullptr;
+  int *goto_table = nullptr;
   const uint32_t terms;
   const uint32_t nonterms;
 };
@@ -42,15 +42,16 @@ public:
   void finalize() override;
   void makeParseTable() override;
   void generateStackActions() override;
+  void getParses(inet::Node *) override;
   void printParseTable() override;
+  void printStackActions() override;
 
 protected:
   LRParseTable *getParseTable() override;
 
 private:
-  std::pair<std::vector<Token>, std::vector<uint32_t>> findTerminal(uint32_t,
-                                                                    uint32_t);
-  LRParseTable *parse_table;
+  void getStackActionClosure(uint32_t);
+  LRParseTable *parse_table = nullptr;
 };
 } // namespace grammar
 

@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdlib>
 // #include <iostream>
+#include <iostream>
 #include <vector>
 
 #include "inet.hpp"
@@ -66,8 +67,12 @@ void interact() {
   std::vector<Action> &actions =
       getActions(left->kind, right->kind, left->value == right->value);
 
-  if (actions.empty())
+  if (actions.empty()) {
+    std::cout << "Reached unimplemented interaction" << left->kind << " >< "
+              << right->kind << std::endl;
     return;
+  }
+
   size_t next_action = 0;
 
   Node *active_pair[] = {left, right};
@@ -76,7 +81,7 @@ void interact() {
   size_t next_new = 0;
 
   // Make new nodes
-  while (actions[next_action].kind == NEW) {
+  while (next_action < actions.size() && actions[next_action].kind == NEW) {
     NewNodeAction nna = actions[next_action].action.new_node;
 
     if (nna.value == -1)
@@ -94,7 +99,7 @@ void interact() {
   }
 
   // Make connections
-  while (actions[next_action].kind == CONNECT) {
+  while (next_action < actions.size() && actions[next_action].kind == CONNECT) {
     Connect c1 = actions[next_action].action.connect.c1;
     Connect c2 = actions[next_action].action.connect.c2;
 
@@ -139,7 +144,7 @@ void interact() {
   }
 
   // Free nodes
-  while (actions[next_action].kind == FREE) {
+  while (next_action < actions.size() && actions[next_action].kind == FREE) {
     if (actions[next_action].action.free)
       freeNode(left);
     else

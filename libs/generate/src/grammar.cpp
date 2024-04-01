@@ -97,6 +97,7 @@ std::vector<Token> Grammar::stringToTokens(std::string input) {
   while (std::getline(input_stream, token_string, ' ')) {
     tokens.push_back({TERM, this->term_id_map[token_string]});
   }
+  tokens.push_back({TERM, this->term_id_map[">"]});
 
   return tokens;
 }
@@ -123,14 +124,17 @@ void Grammar::printGrammar() {
   std::cout << std::endl;
 }
 
-void Grammar::printToken(Token token) {
-  switch (token.kind) {
-  case TERM: {
-    std::cout << this->terminals[token.id];
-    break;
-  }
-  case NON_TERM: {
-    std::cout << this->nonterminals[token.id];
+void Grammar::printStackState(StackState state, bool as_token) {
+  switch (state.kind) {
+  case SOME: {
+    if (!as_token) {
+      std::cout << state.value;
+      break;
+    }
+    if (state.value % 2 == 0)
+      std::cout << this->terminals[state.value / 2];
+    else
+      std::cout << this->nonterminals[(state.value - 1) / 2];
     break;
   }
   case ANY: {
@@ -144,7 +148,29 @@ void Grammar::printToken(Token token) {
   }
 }
 
-void Grammar::printStackActions() {
+void Grammar::printStackAction(const StackAction &stack_action,
+                               bool as_tokens) {
+  for (const grammar::StackState &state : stack_action.lhs) {
+    this->printStackState(state, as_tokens);
+  }
+  std::cout << "/";
+  for (const grammar::StackState &state : stack_action.rhs) {
+    this->printStackState(state, as_tokens);
+  }
+
+  if (stack_action.reduce_rules.empty())
+    return;
+
+  std::cout << " (";
+  for (int j = 0; j < stack_action.reduce_rules.size(); j++) {
+    std::cout << stack_action.reduce_rules[j];
+    if (j < stack_action.reduce_rules.size() - 1)
+      std::cout << ",";
+  }
+  std::cout << ")";
+}
+
+void Grammar::printStackActions(bool as_tokens) {
   if (this->stack_actions == nullptr) {
     std::cerr
         << "ERROR: Attempted to print stack actions before they were generated"
@@ -156,25 +182,8 @@ void Grammar::printStackActions() {
     printf("%8s : ", this->terminals[i].c_str());
 
     for (const auto &stack_action : stack_actions[i]) {
-      for (const grammar::Token &token : stack_action.lhs) {
-        this->printToken(token);
-      }
-      std::cout << "/";
-      for (const grammar::Token &token : stack_action.rhs) {
-        this->printToken(token);
-      }
+      this->printStackAction(stack_action, as_tokens);
       std::cout << " | ";
-
-      if (stack_action.reduce_rules.empty())
-        continue;
-
-      std::cout << " (";
-      for (int j = 0; j < stack_action.reduce_rules.size(); j++) {
-        std::cout << stack_action.reduce_rules[j];
-        if (j < stack_action.reduce_rules.size() - 1)
-          std::cout << ",";
-      }
-      std::cout << ")  ";
     }
     std::cout << std::endl;
   }

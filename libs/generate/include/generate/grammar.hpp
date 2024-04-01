@@ -4,39 +4,64 @@
 #include <boost/container_hash/extensions.hpp>
 #include <boost/container_hash/hash_fwd.hpp>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include <parse/inet.hpp>
 #include <util/util.hpp>
 
 namespace grammar {
 
-enum TokenKind { TERM, NON_TERM, ANY, REST };
+enum TokenKind { TERM, NON_TERM };
+
+enum StackStateKind { SOME, ANY, REST };
+struct StackState {
+  StackStateKind kind;
+  uint32_t value;
+
+  bool operator==(grammar::StackState const &other) const {
+    return this->value == other.value && this->kind == other.kind;
+  }
+};
+
+const StackState REST_STATE = {REST, 0};
+const StackState ANY_STATE = {ANY, 0};
+
+struct StackAction {
+  std::deque<StackState> lhs;
+  std::deque<StackState> rhs;
+  std::deque<uint32_t> reduce_rules;
+
+  bool operator==(grammar::StackAction const &other) const {
+    return this->lhs == other.lhs && this->rhs == other.rhs &&
+           this->reduce_rules == other.reduce_rules;
+  }
+};
 
 struct Token {
   TokenKind kind;
   uint32_t id;
+
+  StackState toStackState() {
+    if (this->kind == TERM) {
+      return StackState{SOME, this->id * 2};
+    } else {
+      return StackState{SOME, this->id * 2 + 1};
+    }
+  }
 
   bool operator==(grammar::Token const &other) const {
     return this->id == other.id && this->kind == other.kind;
   }
 };
 
-const Token ANY_TOKEN = Token{ANY, 0};
-const Token REST_TOKEN = Token{REST, 0};
-
 enum ParseActionKind { EMPTY, SHIFT, REDUCE, ACCEPT };
 
 struct ParseAction {
   ParseActionKind kind;
   uint32_t reduce_rule; // points to a rule in the grammar vector
-};
-
-struct StackAction {
-  std::vector<Token> lhs;
-  std::vector<Token> rhs;
-  std::vector<uint32_t> reduce_rules;
 };
 
 class ParseTable {
@@ -73,10 +98,14 @@ public:
 
   std::vector<Token> stringToTokens(std::string);
 
+  virtual void getParses(inet::Node *) = 0;
+
   void printGrammar();
-  void printToken(Token);
+  void printStackState(StackState, bool);
   virtual void printParseTable() = 0;
-  void printStackActions();
+  void printStackAction(const StackAction &, bool);
+  void printStackActions(bool);
+  virtual void printStackActions() = 0;
 
   virtual ~Grammar();
 
@@ -89,12 +118,12 @@ protected:
   uint32_t terms_size;
   uint32_t nonterms_size;
 
-  std::string *terminals;
-  std::string *nonterminals;
+  std::string *terminals = nullptr;
+  std::string *nonterminals = nullptr;
 
   grammar_rules rules;
   virtual ParseTable *getParseTable() = 0;
-  std::vector<StackAction> *stack_actions;
+  std::vector<StackAction> *stack_actions = nullptr;
 
   void fillStringArrays();
 

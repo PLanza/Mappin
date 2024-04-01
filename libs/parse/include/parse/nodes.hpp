@@ -9,7 +9,7 @@
 
 namespace inet {
 
-const int NODE_KINDS = 21;
+const int NODE_KINDS = 23;
 
 enum NodeKind {
   OUTPUT,
@@ -32,6 +32,8 @@ enum NodeKind {
   BAR_AUX,
   END,
   SYM,
+  ANY,
+  COMP_ANY,
   RULE, // Could use SYM for RULE
 };
 

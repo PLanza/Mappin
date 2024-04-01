@@ -6,7 +6,7 @@
 
 namespace inet {
 
-void drawNetwork(std::unique_ptr<grammar::Grammar> &);
+void drawNetwork(std::unique_ptr<grammar::Grammar> &, bool);
 
 }
 

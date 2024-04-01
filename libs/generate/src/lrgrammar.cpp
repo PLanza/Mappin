@@ -1,5 +1,6 @@
 #include "grammar/lrgrammar.hpp"
 #include "grammar.hpp"
+#include <algorithm>
 #include <boost/container_hash/extensions.hpp>
 #include <cstddef>
 #include <iostream>
@@ -125,7 +126,117 @@ void LR0Grammar::printParseTable() {
   }
   std::cout << std::endl;
 }
-void LR0Grammar::generateStackActions() {}
+
+void LR0Grammar::printStackActions() { Grammar::printStackActions(false); }
+
+bool mergeStackActions(StackAction &left_action, StackAction right_action) {
+  // A-/ should not be able to merge with anything
+  if (left_action.rhs.size() == 0)
+    return false;
+
+  size_t max_i = std::min(left_action.rhs.size(), right_action.lhs.size());
+  size_t i = 0;
+  // Traverse until reach rest
+  for (; i < max_i; i++) {
+    StackState left_state = left_action.rhs[i],
+               right_state = right_action.lhs[i];
+    if (left_state.kind == REST || right_state.kind == REST)
+      break;
+    if (left_state.kind == SOME && right_state.kind == SOME) {
+      if (left_state.value != right_state.value)
+        return false;
+    }
+  }
+
+  if (left_action.rhs[i].kind == REST) {
+    left_action.lhs.erase(left_action.lhs.end() - 1);
+    left_action.lhs.insert(left_action.lhs.end(), right_action.lhs.begin() + i,
+                           right_action.lhs.end());
+  } else if (right_action.lhs[i].kind == REST && right_action.rhs.size() > 0) {
+    right_action.rhs.erase(right_action.rhs.end() - 1);
+    right_action.rhs.insert(right_action.rhs.end(), left_action.rhs.begin() + i,
+                            left_action.rhs.end());
+  }
+  left_action.rhs = right_action.rhs;
+  left_action.reduce_rules.insert(left_action.reduce_rules.end(),
+                                  right_action.reduce_rules.begin(),
+                                  right_action.reduce_rules.end());
+  return true;
+}
+
+void LR0Grammar::getStackActionClosure(uint32_t term) {
+  std::vector<StackAction> curr_actions;
+  while (this->stack_actions[term] != curr_actions) {
+    curr_actions = this->stack_actions[term];
+    for (StackAction &left_action : this->stack_actions[term]) {
+      for (StackAction &right_action : this->stack_actions[term]) {
+        if (mergeStackActions(left_action, right_action))
+          break;
+      }
+    }
+  }
+}
+
+void LR0Grammar::generateStackActions() {
+  if (this->parse_table == nullptr) {
+    std::cerr
+        << "ERROR: Attempted to generate stack actions before the parse table"
+        << std::endl;
+    return;
+  }
+  std::cout << "Generating stack actions for LR(0) Grammar" << std::endl;
+
+  this->stack_actions = new std::vector<StackAction>[this->parse_table->states];
+  this->stack_actions[0] = {StackAction{{}, {{SOME, 0}}, {}}};
+
+  for (uint32_t term = 1; term < this->terms_size; term++) {
+    for (uint32_t state = 0; state < this->parse_table->states; state++) {
+      ParseAction action = this->parse_table->getAction(state, term);
+      switch (action.kind) {
+      case SHIFT: {
+        this->stack_actions[term].push_back(
+            StackAction{{{SOME, state}, REST_STATE},
+                        {{SOME, action.reduce_rule}, {SOME, state}, REST_STATE},
+                        {}});
+        break;
+      }
+      case REDUCE: {
+        std::deque<StackState> lhs_prefix = {{SOME, state}};
+        auto &[rule_lhs, rule_rhs, _] = this->rules[action.reduce_rule];
+        for (int i = 1; i < rule_rhs.size(); i++)
+          lhs_prefix.push_back(ANY_STATE);
+
+        for (uint32_t state = 0; state < this->parse_table->states; state++) {
+          std::deque<StackState> lhs = lhs_prefix;
+          int goto_state = this->parse_table->getGoto(state, rule_lhs.id);
+          if (goto_state < 0)
+            continue;
+
+          lhs.push_back({SOME, state});
+          lhs.push_back(REST_STATE);
+          this->stack_actions[term].push_back(
+              StackAction{lhs,
+                          {{SOME, static_cast<uint32_t>(goto_state)},
+                           {SOME, state},
+                           REST_STATE},
+                          {action.reduce_rule}});
+        }
+        break;
+      }
+      case ACCEPT: {
+        this->stack_actions[term].push_back(
+            StackAction{{{SOME, state}, REST_STATE}, {}, {}});
+        break;
+      }
+      case EMPTY:
+        break;
+      }
+    }
+    this->getStackActionClosure(term);
+  }
+}
+
+void LR0Grammar::getParses(inet::Node *) {}
 
 void getSetClosure(grammar_rules const &rules,
                    std::unordered_set<Item, boost::hash<Item>> &set) {
@@ -153,6 +264,8 @@ LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
                            grammar_rules const &rules, uint32_t start_rule,
                            const char *file_name)
     : terms(terminals), nonterms(nonterminals) {
+  std::cout << "Making LR(0) Grammar parse table" << std::endl;
+
   // The set of items that correspond to the parser's states: state -> {item}
   std::unordered_set<Item, boost::hash<Item>> start_set = {{start_rule, 0}};
   getSetClosure(rules, start_set);
@@ -211,8 +324,8 @@ LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
 
       size_t table_idx = token.id + (token.kind == TERM ? 0 : terminals);
       if (repeat == -1) {
-        item_sets.push_back(set);
         trans_table.back()[table_idx] = item_sets.size();
+        item_sets.push_back(set);
       } else
         trans_table.back()[table_idx] = repeat;
     }
@@ -224,11 +337,11 @@ LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
   assert(trans_table.size() == item_sets.size());
   this->states = item_sets.size();
 
-  this->goto_table = new int[item_sets.size() * nonterminals];
-  this->action_table = new ParseAction[item_sets.size() * terminals];
+  this->goto_table = new int[this->states * this->nonterms];
+  this->action_table = new ParseAction[this->states * this->terms];
   for (int i = 0; i < this->states; i++) {
     for (int j = 0; j < this->terms; j++) {
-      action_table[i * this->states + j] = ParseAction{EMPTY, 0};
+      this->action_table[i * this->terms + j] = ParseAction{EMPTY, 0};
     }
   }
 

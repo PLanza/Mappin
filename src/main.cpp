@@ -1,3 +1,4 @@
+#include <generate/grammar/llgrammar.hpp>
 #include <generate/grammar/lrgrammar.hpp>
 #include <generate/grammar_parser.hpp>
 #include <iostream>
@@ -15,28 +16,31 @@ int main() {
     g->printGrammar();
     g->makeParseTable();
     g->printParseTable();
-    // g->generateStackActions();
-    // g->printStackActions();
+    g->generateStackActions();
+    g->printStackActions();
   } catch (MappinException *e) {
-    std::cerr << e->what() << std::endl;
+    const char *e_str = e->what();
+    std::cerr << e_str << std::endl;
+    delete[] e_str;
+    delete e;
     return -1;
   }
 
-  // std::string parseString = "B B X Z Z C C Y";
-  // std::cout << "\nParsing: " << parseString << std::endl;
-  //
-  // inet::init();
-  // std::vector<grammar::Token> tokens = g->stringToTokens(parseString);
-  // inet::Node *output = inet::createParserNetwork(g->getStackActions(),
-  // tokens);
-  //
-  // while (!inet::interactions.empty()) {
-  //   inet::interact();
-  // }
-  // inet::drawNetwork(g);
-  //
-  // std::cout << "Parsing results: " << std::endl;
-  // inet::getParses(output, g);
+  std::string parseString = "ZERO MUL ONE";
+  std::cout << "\nParsing: " << parseString << std::endl;
+
+  inet::init();
+  std::vector<grammar::Token> tokens = g->stringToTokens(parseString);
+  inet::Node *output = inet::createParserNetwork(g->getStackActions(), tokens);
+
+  while (!inet::interactions.empty()) {
+    // inet::drawNetwork(g, false);
+    inet::interact();
+  }
+  inet::drawNetwork(g, false);
+
+  std::cout << "Parsing results: " << std::endl;
+  g->getParses(output);
 
   return 0;
 };

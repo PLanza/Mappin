@@ -17,7 +17,7 @@ grammar::Token nodeToToken(uint32_t value) {
     return {grammar::NON_TERM, (value - 1) / 2};
 }
 
-void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
+void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar, bool as_tokens) {
   static int counter = 0;
   drag::graph g;
   std::unordered_map<Node *, drag::vertex_t> node_map;
@@ -32,10 +32,13 @@ void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
     if (node->kind == BOOL) {
       opts.labels[graph_node] = node->value == 1 ? "T" : "F";
     } else if (node->kind == SYM) {
-      grammar::Token token = nodeToToken(node->value);
-      opts.labels[graph_node] = token.kind == grammar::TERM
-                                    ? grammar->getTerminalString(token.id)
-                                    : grammar->getNonTerminalString(token.id);
+      if (as_tokens) {
+        grammar::Token token = nodeToToken(node->value);
+        opts.labels[graph_node] = token.kind == grammar::TERM
+                                      ? grammar->getTerminalString(token.id)
+                                      : grammar->getNonTerminalString(token.id);
+      } else
+        opts.labels[graph_node] = std::to_string(node->value);
     } else if (node->kind == COMP_SYM) {
       grammar::Token token = nodeToToken(node->value);
       opts.labels[graph_node] = "○_";
@@ -68,10 +71,10 @@ void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar) {
     }
   }
 
-  opts.edge_colors[{node_map[interactions.back().n1],
-                    node_map[interactions.back().n2]}] = "green";
-  opts.edge_colors[{node_map[interactions.back().n2],
-                    node_map[interactions.back().n1]}] = "green";
+  opts.edge_colors[{node_map[interactions.front().n1],
+                    node_map[interactions.front().n2]}] = "green";
+  opts.edge_colors[{node_map[interactions.front().n2],
+                    node_map[interactions.front().n1]}] = "green";
 
   drag::sugiyama_layout layout(g);
 

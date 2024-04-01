@@ -4,6 +4,8 @@
 #include <unordered_set>
 #include <utility>
 
+#include <parse/nodes.hpp>
+
 namespace grammar {
 LLGrammar::LLGrammar(const char *file_name) : Grammar(file_name) {}
 
@@ -33,16 +35,16 @@ void LLGrammar::generateStackActions() {
   this->stack_actions = new std::vector<StackAction>[this->terms_size];
 
   // '<' => /A
-  this->stack_actions[0].push_back(
-      StackAction{{}, {std::get<0>(this->rules[start_rule])}, {}});
+  this->stack_actions[0].push_back(StackAction{
+      {}, {std::get<0>(this->rules[start_rule]).toStackState()}, {}});
 
   // '>' => -/
-  this->stack_actions[1].push_back(StackAction{{REST_TOKEN}, {}, {}});
+  this->stack_actions[1].push_back(StackAction{{REST_STATE}, {}, {}});
 
   // SHIFT rules
   for (uint32_t t_id = 2; t_id < this->terms_size; t_id++) {
-    this->stack_actions[t_id].push_back(
-        StackAction{{Token{TERM, t_id}, REST_TOKEN}, {REST_TOKEN}, {}});
+    this->stack_actions[t_id].push_back(StackAction{
+        {Token{TERM, t_id}.toStackState(), REST_STATE}, {REST_STATE}, {}});
   }
 
   // REDUCE rules
@@ -59,9 +61,11 @@ void LLGrammar::generateStackActions() {
         auto [right_stack, reduce_rules] =
             this->findTerminal(t_id, action.reduce_rule);
 
-        right_stack.push_back(REST_TOKEN);
-        this->stack_actions[t_id].push_back(StackAction{
-            {Token{NON_TERM, nt_id}, REST_TOKEN}, right_stack, reduce_rules});
+        right_stack.push_back(REST_STATE);
+        this->stack_actions[t_id].push_back(
+            StackAction{{Token{NON_TERM, nt_id}.toStackState(), REST_STATE},
+                        right_stack,
+                        reduce_rules});
         break;
       }
       }
@@ -69,15 +73,19 @@ void LLGrammar::generateStackActions() {
   }
 }
 
-std::pair<std::vector<Token>, std::vector<uint32_t>>
+std::pair<std::deque<StackState>, std::deque<uint32_t>>
 LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
   std::vector<Token> rhs = std::get<1>(this->rules[rule]);
   Token first = rhs[0];
+  std::deque<StackState> stack_suffix;
+  for (size_t i = 1; i < rhs.size(); i++) {
+    stack_suffix.push_back(rhs[i].toStackState());
+  }
 
   switch (first.kind) {
   case (TERM): {
     if (term_id == first.id)
-      return {{rhs.begin() + 1, rhs.end()}, {rule}};
+      return {stack_suffix, {rule}};
     else {
       std::cerr << "error: got wrong terminal \'" << this->terminals[term_id]
                 << "\' when generating stack actions\n"
@@ -90,7 +98,8 @@ LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
         this->parse_table->getAction(first.id, term_id).reduce_rule;
 
     auto [stack_prefix, reduce_rules] = this->findTerminal(term_id, next_rule);
-    stack_prefix.insert(stack_prefix.end(), rhs.begin() + 1, rhs.end());
+    stack_prefix.insert(stack_prefix.end(), stack_suffix.begin(),
+                        stack_suffix.end());
     reduce_rules.insert(reduce_rules.begin(), rule);
 
     return {stack_prefix, reduce_rules};
@@ -109,10 +118,10 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
   std::cout << "Making LL Grammar parse table" << std::endl;
 
   // Initialize parse table as a contiguous array
-  ParseAction *parse_table = new ParseAction[this->rows * this->cols];
+  this->table = new ParseAction[this->rows * this->cols];
   for (int i = 0; i < this->rows; i++) {
     for (int j = 0; j < this->cols; j++) {
-      parse_table[i * this->cols + j] = ParseAction{EMPTY, 0};
+      this->table[i * this->cols + j] = ParseAction{EMPTY, 0};
     }
   }
 
@@ -150,15 +159,13 @@ LLParseTable::LLParseTable(uint32_t terminals, uint32_t nonterminals,
       uint32_t term = static_cast<uint32_t>(element >> 32);
       uint32_t rule = static_cast<uint32_t>(element);
 
-      if (parse_table[non_term * this->cols + term].kind != EMPTY) {
+      if (this->table[non_term * this->cols + term].kind != EMPTY) {
         throw exceptionOnLine(AMBIGUOUS_GRAMMAR, file_name,
                               std::get<2>(rules[rule]));
       }
-      parse_table[non_term * this->cols + term] = {REDUCE, rule};
+      this->table[non_term * this->cols + term] = {REDUCE, rule};
     }
   }
-
-  this->table = parse_table;
 }
 
 void LLGrammar::printParseTable() {
@@ -206,9 +213,68 @@ void LLGrammar::printParseTable() {
   std::cout << std::endl;
 }
 
+void LLGrammar::printStackActions() { Grammar::printStackActions(true); }
+
 ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) const {
   return this->table[nonterm * this->cols + term];
 }
 
 LLParseTable::~LLParseTable() { delete[] this->table; }
+
+void LLGrammar::traverseRules(inet::Node *cons, std::deque<uint32_t> &stack) {
+  if (cons->kind == inet::CONS) {
+    this->traverseRules(cons->ports[1].node, stack);
+    this->traverseRules(cons->ports[2].node, stack);
+    return;
+  }
+
+  while (cons->kind == inet::RULE) {
+    auto const rule = this->getRule(cons->value);
+    grammar::Token const &head = std::get<0>(rule);
+    std::cout << this->getNonTerminalString(head.id);
+    std::vector<grammar::Token> const &rhs = std::get<1>(rule);
+
+    unsigned int nonterms = 0;
+    for (auto const &token : rhs) {
+      if (token.kind == grammar::NON_TERM)
+        nonterms++;
+    }
+    if (nonterms == 0) {
+      stack.front()--;
+      while (stack.front() == 0) {
+        std::cout << " ]";
+        stack.pop_front();
+        stack.front()--;
+      }
+    } else {
+      std::cout << "[ ";
+      stack.push_front(nonterms);
+    }
+
+    cons = cons->ports[1].node;
+  }
+}
+
+void LLGrammar::getParse(inet::Node *product) {
+  // For each parse, check the stack action for incomplete parses
+  inet::Node *stack_action = product->ports[2].node;
+  if (stack_action->ports[1].node->kind != inet::END &&
+      stack_action->ports[2].node->kind != inet::END)
+    return;
+
+  // If valid then traverse the reduction rules and print parse
+  inet::Node *cons = product->ports[1].node;
+  std::deque<uint32_t> stack;
+  this->traverseRules(cons, stack);
+  std::cout << std::endl;
+}
+
+void LLGrammar::getParses(inet::Node *output) {
+  // Traverse the list, each element a different parse
+  inet::Node *cons = output->ports[1].node;
+  while (cons->kind == inet::CONS) {
+    this->getParse(cons->ports[1].node);
+    cons = cons->ports[2].node;
+  }
+}
 } // namespace grammar

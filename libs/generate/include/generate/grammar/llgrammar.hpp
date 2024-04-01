@@ -2,6 +2,7 @@
 #define __MAPPIN_GEN_LLGRAMMAR__
 
 #include "../grammar.hpp"
+#include <deque>
 #include <utility>
 
 namespace grammar {
@@ -28,14 +29,19 @@ public:
   void makeParseTable() override;
   void generateStackActions() override;
   void printParseTable() override;
+  void printStackActions() override;
+
+  void getParses(inet::Node *) override;
 
 protected:
   LLParseTable *getParseTable() override;
 
 private:
-  std::pair<std::vector<Token>, std::vector<uint32_t>> findTerminal(uint32_t,
-                                                                    uint32_t);
-  LLParseTable *parse_table;
+  std::pair<std::deque<StackState>, std::deque<uint32_t>>
+      findTerminal(uint32_t, uint32_t);
+  void getParse(inet::Node *parse);
+  void traverseRules(inet::Node *, std::deque<uint32_t> &);
+  LLParseTable *parse_table = nullptr;
 };
 } // namespace grammar
 #endif
