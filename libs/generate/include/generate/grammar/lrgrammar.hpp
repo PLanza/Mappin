@@ -16,18 +16,6 @@ struct Item {
   }
 };
 
-struct ParseTree {
-  TokenKind kind;
-  uint32_t value;
-  ParseTree **children = nullptr;
-
-  ParseTree(TokenKind kind, uint32_t value, size_t size)
-      : kind(kind), value(value) {
-    this->children = new ParseTree *[size];
-  }
-  ~ParseTree() { delete[] children; }
-};
-
 class LRParseTable : public ParseTable {
 public:
   LRParseTable(uint32_t, uint32_t, grammar_rules const &, uint32_t,
@@ -56,11 +44,11 @@ public:
   void generateStackActions() override;
   void printParseTable() override;
   void printStackActions() override;
-  void printParseTree(ParseTree *);
+  void printParseTree(ParseTree *) override;
 
 protected:
   LRParseTable *getParseTable() override;
-  void getParse(inet::Node *) override;
+  ParseTree *getParse(inet::Node *) override;
 
 private:
   void getStackActionClosure(uint32_t);

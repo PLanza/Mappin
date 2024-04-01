@@ -200,13 +200,17 @@ void Grammar::fillStringArrays() {
     this->nonterminals[nt_id] = name;
 }
 
-void Grammar::getParses(inet::Node *output) {
+std::vector<ParseTree *> Grammar::getParses(inet::Node *output) {
+  std::vector<ParseTree *> trees;
   // Traverse the list, each element a different parse
   inet::Node *cons = output->ports[1].node;
   while (cons->kind == inet::CONS) {
-    this->getParse(cons->ports[1].node);
+    ParseTree *tree = this->getParse(cons->ports[1].node);
+    if (tree != nullptr)
+      trees.push_back(tree);
     cons = cons->ports[2].node;
   }
+  return trees;
 }
 
 Grammar::~Grammar() {

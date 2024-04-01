@@ -77,6 +77,18 @@ enum GrammarExceptionKind {
 MappinException *exceptionOnLine(GrammarExceptionKind, const char *,
                                  std::size_t);
 
+struct ParseTree {
+  TokenKind kind;
+  uint32_t value;
+  ParseTree **children = nullptr;
+
+  ParseTree(TokenKind kind, uint32_t value, size_t size)
+      : kind(kind), value(value) {
+    this->children = new ParseTree *[size];
+  }
+  ~ParseTree() { delete[] children; }
+};
+
 // line l: a -> A b c
 // => (a, [A, b, c], l)
 typedef std::vector<std::tuple<Token, std::vector<Token>, std::size_t>>
@@ -98,7 +110,7 @@ public:
 
   std::vector<Token> stringToTokens(std::string);
 
-  void getParses(inet::Node *);
+  std::vector<ParseTree *> getParses(inet::Node *);
 
   void printGrammar();
   void printStackState(StackState, bool);
@@ -106,6 +118,7 @@ public:
   void printStackAction(const StackAction &, bool);
   void printStackActions(bool);
   virtual void printStackActions() = 0;
+  virtual void printParseTree(ParseTree *) = 0;
 
   virtual ~Grammar();
 
@@ -131,7 +144,7 @@ protected:
   Token newNonTerminal(std::string);
   void fillStringArrays();
   virtual ParseTable *getParseTable() = 0;
-  virtual void getParse(inet::Node *) = 0;
+  virtual ParseTree *getParse(inet::Node *) = 0;
 };
 
 } // namespace grammar

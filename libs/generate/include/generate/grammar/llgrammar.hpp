@@ -30,13 +30,14 @@ public:
   void generateStackActions() override;
   void printParseTable() override;
   void printStackActions() override;
+  void printParseTree(ParseTree *) override;
 
 protected:
   LLParseTable *getParseTable() override;
-  void getParse(inet::Node *) override;
+  ParseTree *getParse(inet::Node *) override;
 
 private:
-  void traverseRules(inet::Node *, std::deque<uint32_t> &);
+  void traverseRules(inet::Node *, std::deque<ParseTree *> &);
   std::pair<std::deque<StackState>, std::deque<uint32_t>>
       findTerminal(uint32_t, uint32_t);
   LLParseTable *parse_table = nullptr;

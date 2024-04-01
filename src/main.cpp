@@ -11,7 +11,7 @@
 int main() {
   std::unique_ptr<grammar::Grammar> g;
   try {
-    GrammarParser<grammar::LR0Grammar> g_parser("examples/test2.grammar");
+    GrammarParser<grammar::LLGrammar> g_parser("examples/test.grammar");
     g = g_parser.parseGrammar();
     g->printGrammar();
     g->makeParseTable();
@@ -26,7 +26,7 @@ int main() {
     return -1;
   }
 
-  std::string parseString = "ZERO MUL ONE";
+  std::string parseString = "B B X Z Z C C Y";
   std::cout << "\nParsing: " << parseString << std::endl;
 
   inet::init();
@@ -40,7 +40,11 @@ int main() {
   inet::drawNetwork(g, false);
 
   std::cout << "Parsing results: " << std::endl;
-  g->getParses(output);
+  std::vector<grammar::ParseTree *> trees = g->getParses(output);
+  for (grammar::ParseTree *tree : trees) {
+    g->printParseTree(tree);
+    std::cout << std::endl;
+  }
 
   return 0;
 };

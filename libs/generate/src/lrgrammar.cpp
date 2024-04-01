@@ -259,12 +259,12 @@ void LR0Grammar::traverseRules(inet::Node *cons,
   }
 }
 
-void LR0Grammar::getParse(inet::Node *product) {
+ParseTree *LR0Grammar::getParse(inet::Node *product) {
   // For each parse, check the stack action for incomplete parses
   inet::Node *stack_action = product->ports[2].node;
   if (stack_action->ports[1].node->kind != inet::END &&
       stack_action->ports[2].node->kind != inet::END)
-    return;
+    return nullptr;
 
   // If valid then traverse the reduction rules and print parse
   inet::Node *cons = product->ports[1].node;
@@ -278,15 +278,9 @@ void LR0Grammar::getParse(inet::Node *product) {
     tree->children[i] = stack.back();
     stack.pop_back();
   }
+  delete stack.back();
 
-  this->printParseTree(tree);
-  std::cout << std::endl;
-  delete tree;
-  for (ParseTree *tree : stack) {
-    delete tree;
-  }
-
-  // return tree;
+  return tree;
 }
 
 void LR0Grammar::printParseTree(ParseTree *tree) {

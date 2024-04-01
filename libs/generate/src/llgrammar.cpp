@@ -221,52 +221,60 @@ ParseAction LLParseTable::getAction(uint32_t nonterm, uint32_t term) const {
 
 LLParseTable::~LLParseTable() { delete[] this->table; }
 
-void LLGrammar::getParse(inet::Node *product) {
+ParseTree *LLGrammar::getParse(inet::Node *product) {
   // For each parse, check the stack action for incomplete parses
   inet::Node *stack_action = product->ports[2].node;
   if (stack_action->ports[1].node->kind != inet::END &&
       stack_action->ports[2].node->kind != inet::END)
-    return;
+    return nullptr;
 
   // If valid then traverse the reduction rules and print parse
   inet::Node *cons = product->ports[1].node;
-  std::deque<uint32_t> stack;
+  std::deque<ParseTree *> stack;
   this->traverseRules(cons, stack);
-  std::cout << std::endl;
+
+  delete stack.back();
+  stack.pop_back();
+  ParseTree *tree = stack.back();
+
+  stack.pop_back();
+  delete stack.back();
+  stack.pop_back();
+
+  return tree;
 }
 
-void LLGrammar::traverseRules(inet::Node *cons, std::deque<uint32_t> &stack) {
+void LLGrammar::printParseTree(ParseTree *tree) {
+  if (tree->kind == TERM) {
+    std::cout << "_";
+  } else {
+    auto const &[head, rhs, _] = this->getRule(tree->value);
+    std::cout << this->getNonTerminalString(head.id) << "[ ";
+    for (size_t i = 0; i < rhs.size(); i++) {
+      this->printParseTree(tree->children[i]);
+      std::cout << " ";
+    }
+    std::cout << "]";
+  }
+}
+
+void LLGrammar::traverseRules(inet::Node *cons,
+                              std::deque<ParseTree *> &stack) {
   if (cons->kind == inet::CONS) {
-    this->traverseRules(cons->ports[1].node, stack);
     this->traverseRules(cons->ports[2].node, stack);
-    return;
-  }
+    this->traverseRules(cons->ports[1].node, stack);
+  } else if (cons->kind == inet::RULE) {
+    this->traverseRules(cons->ports[1].node, stack);
+    auto const &[head, rhs, _] = this->getRule(cons->value);
+    ParseTree *tree = new ParseTree(NON_TERM, cons->value, rhs.size());
 
-  while (cons->kind == inet::RULE) {
-    auto const &rule = this->getRule(cons->value);
-    grammar::Token const &head = std::get<0>(rule);
-    std::cout << this->getNonTerminalString(head.id);
-    std::vector<grammar::Token> const &rhs = std::get<1>(rule);
-
-    unsigned int nonterms = 0;
-    for (auto const &token : rhs) {
-      if (token.kind == grammar::NON_TERM)
-        nonterms++;
+    for (size_t i = 0; i < rhs.size(); i++) {
+      tree->children[i] = stack.back();
+      stack.pop_back();
     }
-    if (nonterms == 0) {
-      stack.front()--;
-      while (stack.front() == 0) {
-        std::cout << " ]";
-        stack.pop_front();
-        stack.front()--;
-      }
-    } else {
-      std::cout << "[ ";
-      stack.push_front(nonterms);
-    }
-
-    cons = cons->ports[1].node;
+    stack.push_back(tree);
+  } else if (cons->kind == inet::END) {
+    stack.push_back(new ParseTree(TERM, 0, 0));
   }
 }
-
 } // namespace grammar
