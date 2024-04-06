@@ -9,6 +9,10 @@ set(CMAKE_BUILD_TYPE Debug)
 #Create compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Required for coding remotely on a computer without a GPU
+set(CMAKE_CUDA_ARCHITECTURES 80)
+set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+
 set(PROJECT_NAME
   mappin
 )
@@ -41,11 +45,12 @@ set(LIBRARIES
   util
   generate
   parse
+  parallel
 )
 
 project(${PROJECT_NAME} 
         DESCRIPTION "Massively Parallel Parsing with Interaction Nets"
-        LANGUAGES CXX #CUDA
+        LANGUAGES CXX CUDA
 )
 
 # Create an executable using source files specified as SOURCE and with header
