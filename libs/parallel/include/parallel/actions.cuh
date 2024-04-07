@@ -32,7 +32,7 @@ inline const uint8_t MAX_ACTIONS = 16;
 inline const size_t ACTIONS_MAP_SIZE =
     ((NODE_KINDS * NODE_KINDS + NODE_KINDS) / 2) * 2 * MAX_ACTIONS;
 
-extern Action actions_map[ACTIONS_MAP_SIZE];
+extern Action actions_map_h[ACTIONS_MAP_SIZE];
 
 size_t actMapIndex(NodeKind, NodeKind);
 void initActions();

@@ -16,6 +16,7 @@ set(SOURCE
     ${SOURCE_DIR}/actions.cu
     ${SOURCE_DIR}/network.cu
     ${SOURCE_DIR}/run.cu
+    ${SOURCE_DIR}/queue.cu
 )
 
 set(HEADERS_DIR
@@ -25,6 +26,7 @@ set(HEADERS
   ${HEADERS_DIR}/inet.cuh
   ${HEADERS_DIR}/actions.cuh
   ${HEADERS_DIR}/network.cuh
+  ${HEADERS_DIR}/queue.cuh
 )
 
 set(LIBRARIES

@@ -8,10 +8,6 @@
 #define connect_n(connect) (connect >> 3 & 0b111)
 #define connect_p(connect) (connect & 0b111)
 
-const uint8_t NODE_ARITIES[NODE_KINDS] = {
-    1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2, 1, 1, 1, 0, 1, 1, 2,
-};
-
 Action createAction(node_kind kind, int16_t value) {
   return Action{NEW, {.new_node = NewNodeAction{kind, value}}};
 }
@@ -30,7 +26,7 @@ Action createAction(Group g1, uint8_t n1, uint8_t p1, Group g2, uint8_t n2,
 Action createAction(bool node) { return Action{FREE, {.free = node}}; }
 
 // Triangular matrix
-Action actions_map[ACTIONS_MAP_SIZE]; // ~32Kb
+Action actions_map_h[ACTIONS_MAP_SIZE]; // ~32Kb
 
 // Get index into actions_map
 size_t actMapIndex(NodeKind n1, NodeKind n2) {
@@ -52,7 +48,7 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
       if (seen_connect || seen_free || seen_none)
         return false;
 
-      new_arities.push_back(NODE_ARITIES[action.action.new_node.kind]);
+      new_arities.push_back(NODE_ARITIES_H[action.action.new_node.kind]);
       break;
     }
     case CONNECT: {
@@ -64,7 +60,7 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
       switch (connect_g(c1)) {
       case ACTIVE_PAIR:
       case VARS: {
-        if (connect_n(c1) > 1 || connect_p(c1) > NODE_ARITIES[n1])
+        if (connect_n(c1) > 1 || connect_p(c1) > NODE_ARITIES_H[n1])
           return false;
         break;
       }
@@ -79,7 +75,7 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
       switch (connect_g(c2)) {
       case ACTIVE_PAIR:
       case VARS: {
-        if (connect_n(c2) > 1 || connect_p(c2) > NODE_ARITIES[n2])
+        if (connect_n(c2) > 1 || connect_p(c2) > NODE_ARITIES_H[n2])
           return false;
         break;
       }
@@ -111,8 +107,8 @@ void addActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
     return;
   }
   for (int i = 0; i < actions.size(); i++) {
-    actions_map[actMapIndex(n1, n2) + i] = actions[i];
-    actions_map[actMapIndex(n1, n2) + MAX_ACTIONS + i] = actions[i];
+    actions_map_h[actMapIndex(n1, n2) + i] = actions[i];
+    actions_map_h[actMapIndex(n1, n2) + MAX_ACTIONS + i] = actions[i];
   }
 }
 
@@ -120,9 +116,9 @@ void addActions(NodeKind n1, NodeKind n2, bool matches,
                 std::vector<Action> actions) {
   for (int i = 0; i < actions.size(); i++) {
     if (matches)
-      actions_map[actMapIndex(n1, n2) + i] = actions[i];
+      actions_map_h[actMapIndex(n1, n2) + i] = actions[i];
     else
-      actions_map[actMapIndex(n1, n2) + MAX_ACTIONS + i] = actions[i];
+      actions_map_h[actMapIndex(n1, n2) + MAX_ACTIONS + i] = actions[i];
   }
 }
 
@@ -131,18 +127,18 @@ void addDeleteActions() {
   for (uint8_t kind = DELETE; kind < NODE_KINDS; kind++) {
     std::vector<Action> actions;
 
-    for (int i = 1; i < NODE_ARITIES[kind]; i++)
+    for (int i = 1; i < NODE_ARITIES_H[kind]; i++)
       actions.push_back(createAction(DELETE, 0));
 
-    if (NODE_ARITIES[kind] > 0) {
+    if (NODE_ARITIES_H[kind] > 0) {
       actions.push_back(createAction(ACTIVE_PAIR, 0, 0, VARS, 1, 0));
     }
 
-    for (size_t i = 1; i < NODE_ARITIES[kind]; i++)
+    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
       actions.push_back(createAction(NEW_NODES, i - 1, 0, VARS, 1, i));
 
     actions.push_back(createAction(false));
-    if (NODE_ARITIES[kind] == 0)
+    if (NODE_ARITIES_H[kind] == 0)
       actions.push_back(createAction(true));
 
     addActions(DELETE, (NodeKind)kind, actions);
@@ -174,13 +170,13 @@ void addDeltaActions() {
     std::vector<Action> actions;
     actions.push_back(createAction((node_kind)kind, -2));
 
-    for (int i = 1; i < NODE_ARITIES[kind]; i++)
+    for (int i = 1; i < NODE_ARITIES_H[kind]; i++)
       actions.push_back(createAction(DELTA, -1));
 
     actions.push_back(createAction(ACTIVE_PAIR, 1, 0, VARS, 0, 0));
     actions.push_back(createAction(NEW_NODES, 0, 0, VARS, 0, 1));
 
-    if (NODE_ARITIES[kind] == 0) {
+    if (NODE_ARITIES_H[kind] == 0) {
       actions.push_back(createAction(true));
       addActions(DELTA, (NodeKind)kind, actions);
       continue;
@@ -190,7 +186,7 @@ void addDeltaActions() {
     actions.push_back(createAction(ACTIVE_PAIR, 0, 1, ACTIVE_PAIR, 1, 1));
     actions.push_back(createAction(ACTIVE_PAIR, 0, 2, NEW_NODES, 0, 1));
 
-    for (size_t i = 1; i < NODE_ARITIES[kind]; i++) {
+    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++) {
       actions.push_back(createAction(NEW_NODES, i, 0, VARS, 1, i));
 
       actions.push_back(createAction(NEW_NODES, i, 1, ACTIVE_PAIR, 1, i + 1));
@@ -203,7 +199,7 @@ void addDeltaActions() {
 
 void initActions() {
   for (int i = 0; i < NODE_KINDS * NODE_KINDS * 2 * MAX_ACTIONS; i++)
-    actions_map[i] = {NONE, {false}};
+    actions_map_h[i] = {NONE, {false}};
   addActions(GAMMA, GAMMA, true,
              {
                  createAction(VARS, 0, 0, VARS, 1, 0),

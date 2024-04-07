@@ -34,12 +34,14 @@ enum NodeKind {
   COMP_ANY,
 };
 
-extern const uint8_t NODE_ARITIES[NODE_KINDS];
-
+extern const uint8_t NODE_ARITIES_H[NODE_KINDS];
 
 struct __align__(8) NodeElement {
   union {
-    struct {uint8_t kind; uint32_t value;} header;
+    struct {
+      uint8_t kind;
+      uint32_t value;
+    } header;
     NodeElement *port_node;
     uint64_t port_port;
   };
@@ -50,4 +52,8 @@ struct __align__(16) Port {
   uint64_t port;
 };
 
+struct __align__(16) Interaction {
+  NodeElement *n1;
+  NodeElement *n2;
+};
 #endif
