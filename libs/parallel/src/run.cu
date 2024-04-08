@@ -1,6 +1,7 @@
 #include "../include/parallel/actions.cuh"
 #include "../include/parallel/inet.cuh"
 #include "../include/parallel/network.cuh"
+#include "../include/parallel/queue.cuh"
 #include "generate/grammar.hpp"
 #include <cstdlib>
 #include <memory>
@@ -9,14 +10,34 @@
 __constant__ uint8_t NODE_ARITIES[NODE_KINDS];
 __constant__ Action actions_map[ACTIONS_MAP_SIZE];
 
+void checkCudaErrors(cudaError_t err, const char *file, const int line) {
+  if (cudaSuccess != err) {
+    const char *errorStr = cudaGetErrorString(err);
+    fprintf(stderr,
+            "checkCudaErrors() Driver API error = %04d \"%s\" from file <%s>, "
+            "line %i.\n",
+            err, errorStr, file, line);
+    exit(EXIT_FAILURE);
+  }
+}
+
+void checkCudaErrors(cudaError_t err) {
+  checkCudaErrors(err, __FILE__, __LINE__);
+}
+
 void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
+  cudaDeviceProp *prop;
+  checkCudaErrors(cudaGetDeviceProperties(prop, 0));
+
+  dim3 grid_dims(16, 1, 1);
+  dim3 block_dims(256, 1, 1);
 
   initActions();
 
-  cudaMemcpyToSymbol(NODE_ARITIES, NODE_ARITIES_H,
-                     sizeof(uint8_t) * NODE_KINDS);
-  cudaMemcpyToSymbol(actions_map, actions_map_h,
-                     sizeof(Action) * ACTIONS_MAP_SIZE);
+  checkCudaErrors(cudaMemcpyToSymbol(NODE_ARITIES, NODE_ARITIES_H,
+                                     sizeof(uint8_t) * NODE_KINDS));
+  checkCudaErrors(cudaMemcpyToSymbol(actions_map, actions_map_h,
+                                     sizeof(Action) * ACTIONS_MAP_SIZE));
 
   std::vector<grammar::Token> tokens = grammar->stringToTokens(input_string);
   HostINetwork host_network(grammar->getStackActions(), tokens);
@@ -25,27 +46,41 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
       sizeof(Interaction) * host_network.getInteractions();
   size_t network_size = sizeof(NodeElement) * host_network.getNetworkSize();
 
-  Interaction *interactions_h = (Interaction *)malloc(interactions_size);
+  Interaction *interactions = (Interaction *)malloc(interactions_size);
   NodeElement *network_h = (NodeElement *)malloc(network_size);
 
-  host_network.initNetwork(network_h, interactions_h);
+  host_network.initNetwork(network_h, interactions);
 
-  Interaction *interactions_d;
+  // Initialize global queue such that the first set of interactions can be
+  // immediately loaded by the threads
+  InteractionQueue<MAX_INTERACTIONS_SIZE> globalQueue_h(
+      interactions, interactions_size, grid_dims.x * block_dims.x);
+  InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue_d;
+  checkCudaErrors(cudaMalloc((void **)&globalQueue_d,
+                             sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>)));
+  checkCudaErrors(cudaMemcpy(globalQueue_d, &globalQueue_h,
+                             sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>),
+                             cudaMemcpyHostToDevice));
+
   NodeElement *network_d;
 
-  cudaMalloc((void **)&interactions_d, interactions_size);
-  cudaMalloc((void **)&network_d, network_size);
+  checkCudaErrors(cudaMalloc((void **)&network_d, network_size));
+  checkCudaErrors(
+      cudaMemcpy(network_d, network_h, network_size, cudaMemcpyHostToDevice));
 
-  cudaMemcpy(interactions_d, interactions_h, interactions_size,
-             cudaMemcpyHostToDevice);
-  cudaMemcpy(network_d, network_h, network_size, cudaMemcpyHostToDevice);
+  cudaDeviceSetLimit(cudaLimitMallocHeapSize,
+                     MAX_INTERACTIONS_SIZE * sizeof(Interaction) +
+                         MAX_NETWORK_SIZE * sizeof(NodeElement));
 
   // Invoke kernel
+  runINet<<<grid_dims, block_dims>>>(network_d, globalQueue_d,
+                                     interactions_size);
 
-  cudaMemcpy(network_h, network_d, network_size, cudaMemcpyDeviceToHost);
+  checkCudaErrors(
+      cudaMemcpy(network_h, network_d, network_size, cudaMemcpyDeviceToHost));
 
-  cudaFree(interactions_d);
-  cudaFree(network_d);
+  checkCudaErrors(cudaFree(globalQueue_d));
+  checkCudaErrors(cudaFree(network_d));
 
   // traverse network_h and retrieve parse
 }

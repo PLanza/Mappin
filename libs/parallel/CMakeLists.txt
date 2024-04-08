@@ -16,7 +16,6 @@ set(SOURCE
     ${SOURCE_DIR}/actions.cu
     ${SOURCE_DIR}/network.cu
     ${SOURCE_DIR}/run.cu
-    ${SOURCE_DIR}/queue.cu
 )
 
 set(HEADERS_DIR

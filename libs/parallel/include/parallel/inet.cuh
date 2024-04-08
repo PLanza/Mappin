@@ -56,4 +56,13 @@ struct __align__(16) Interaction {
   NodeElement *n1;
   NodeElement *n2;
 };
+
+#define MAX_NETWORK_SIZE (1024 * 1024 * 1024)
+#define MAX_INTERACTIONS_SIZE (1024 * 1024)
+
+template <uint32_t N> class InteractionQueue;
+
+__global__ void runINet(NodeElement *,
+                        InteractionQueue<MAX_INTERACTIONS_SIZE> *, size_t);
+
 #endif

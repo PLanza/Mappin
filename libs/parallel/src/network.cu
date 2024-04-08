@@ -34,6 +34,7 @@ uint64_t HostINetwork::stackStateToNode(grammar::StackState state) {
     return this->createNode(BAR, 0);
   }
   }
+  return 0;
 }
 
 uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
