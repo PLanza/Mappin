@@ -72,9 +72,12 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
                      MAX_INTERACTIONS_SIZE * sizeof(Interaction) +
                          MAX_NETWORK_SIZE * sizeof(NodeElement));
 
+  bool *global_done_d;
+  bool global_done_h[grid_dims.x];
+
   // Invoke kernel
   runINet<<<grid_dims, block_dims>>>(network_d, globalQueue_d,
-                                     interactions_size);
+                                     interactions_size, global_done_d);
 
   checkCudaErrors(
       cudaMemcpy(network_h, network_d, network_size, cudaMemcpyDeviceToHost));
