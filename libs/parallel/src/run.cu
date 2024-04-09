@@ -7,9 +7,6 @@
 #include <memory>
 #include <string>
 
-__constant__ uint8_t NODE_ARITIES[NODE_KINDS];
-__constant__ Action actions_map[ACTIONS_MAP_SIZE];
-
 void checkCudaErrors(cudaError_t err, const char *file, const int line) {
   if (cudaSuccess != err) {
     const char *errorStr = cudaGetErrorString(err);

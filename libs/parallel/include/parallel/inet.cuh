@@ -7,7 +7,7 @@
 typedef uint64_t node_elem;
 typedef uint8_t node_kind;
 
-inline const size_t NODE_KINDS = 22;
+inline const uint8_t NODE_KINDS = 22;
 
 enum NodeKind {
   OUTPUT,
@@ -32,10 +32,15 @@ enum NodeKind {
   SYM, // also for RULE
   ANY,
   COMP_ANY,
+
 };
 
 extern const uint8_t NODE_ARITIES_H[NODE_KINDS];
+__constant__ uint8_t NODE_ARITIES[NODE_KINDS];
 
+// TODO: Manage the network directly such that it is located in a fixed address
+// space Then, nodes are instead 32-bit indexes and we can condense nodes and
+// ports into one 64-bit value. Similaraly for Interactions.
 struct __align__(8) NodeElement {
   union {
     struct {

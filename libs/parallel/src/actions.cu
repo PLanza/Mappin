@@ -4,10 +4,6 @@
 #include "../include/parallel/actions.cuh"
 #include "../include/parallel/inet.cuh"
 
-#define connect_g(connect) (connect >> 6 & 0b11)
-#define connect_n(connect) (connect >> 3 & 0b111)
-#define connect_p(connect) (connect & 0b111)
-
 Action createAction(node_kind kind, int16_t value) {
   return Action{NEW, {.new_node = NewNodeAction{kind, value}}};
 }

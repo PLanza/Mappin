@@ -9,7 +9,7 @@
 
 namespace inet {
 
-const uint32_t MAX_NEW_NODES = 5;
+const uint32_t MAX_NEW_NODES = 3;
 
 std::unordered_set<Node *> nodes;
 
