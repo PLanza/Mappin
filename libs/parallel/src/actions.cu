@@ -127,11 +127,11 @@ void addDeleteActions() {
       actions.push_back(createAction(DELETE, 0));
 
     if (NODE_ARITIES_H[kind] > 0) {
-      actions.push_back(createAction(ACTIVE_PAIR, 0, 0, VARS, 1, 0));
+      actions.push_back(createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0));
     }
 
     for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
-      actions.push_back(createAction(NEW_NODES, i - 1, 0, VARS, 1, i));
+      actions.push_back(createAction(VARS, 1, i, NEW_NODES, i - 1, 0));
 
     actions.push_back(createAction(false));
     if (NODE_ARITIES_H[kind] == 0)
@@ -152,8 +152,8 @@ void addDeltaActions() {
                  createAction(DELTA, -1),
                  createAction(DELTA, -2),
                  createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
-                 createAction(VARS, 0, 1, NEW_NODES, 1, 0),
                  createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 1, 0),
                  createAction(VARS, 1, 1, NEW_NODES, 0, 0),
                  createAction(ACTIVE_PAIR, 1, 1, ACTIVE_PAIR, 0, 1),
                  createAction(ACTIVE_PAIR, 0, 2, NEW_NODES, 1, 1),
@@ -169,8 +169,8 @@ void addDeltaActions() {
     for (int i = 1; i < NODE_ARITIES_H[kind]; i++)
       actions.push_back(createAction(DELTA, -1));
 
-    actions.push_back(createAction(ACTIVE_PAIR, 1, 0, VARS, 0, 0));
-    actions.push_back(createAction(NEW_NODES, 0, 0, VARS, 0, 1));
+    actions.push_back(createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0));
+    actions.push_back(createAction(VARS, 0, 1, NEW_NODES, 0, 0));
 
     if (NODE_ARITIES_H[kind] == 0) {
       actions.push_back(createAction(true));
@@ -178,16 +178,17 @@ void addDeltaActions() {
       continue;
     }
 
-    actions.push_back(createAction(ACTIVE_PAIR, 0, 0, VARS, 1, 0));
+    actions.push_back(createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0));
+    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
+      actions.push_back(createAction(VARS, 1, i, NEW_NODES, i, 0));
+
     actions.push_back(createAction(ACTIVE_PAIR, 0, 1, ACTIVE_PAIR, 1, 1));
     actions.push_back(createAction(ACTIVE_PAIR, 0, 2, NEW_NODES, 0, 1));
+    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
+      actions.push_back(createAction(ACTIVE_PAIR, 1, i + 1, NEW_NODES, i, 1));
 
-    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++) {
-      actions.push_back(createAction(NEW_NODES, i, 0, VARS, 1, i));
-
-      actions.push_back(createAction(NEW_NODES, i, 1, ACTIVE_PAIR, 1, i + 1));
+    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
       actions.push_back(createAction(NEW_NODES, i, 2, NEW_NODES, 0, i + 1));
-    }
 
     addActions(DELTA, (NodeKind)kind, actions);
   }
@@ -219,7 +220,7 @@ void initActions() {
              {
                  createAction(DELETE, 0),
                  createAction(VARS, 0, 0, VARS, 0, 2),
-                 createAction(NEW_NODES, 0, 0, VARS, 0, 1),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(true),
                  createAction(false),
              });
@@ -228,14 +229,14 @@ void initActions() {
                  createAction(DELTA, -3),
                  createAction(GAMMA, 0),
                  createAction(GAMMA, 0),
+                 createAction(VARS, 1, 1, ACTIVE_PAIR, 0, 0),
                  createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(VARS, 0, 2, NEW_NODES, 2, 2),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 1),
-                 createAction(VARS, 1, 1, ACTIVE_PAIR, 0, 0),
+                 createAction(ACTIVE_PAIR, 0, 2, NEW_NODES, 0, 2),
+                 createAction(ACTIVE_PAIR, 0, 3, NEW_NODES, 2, 1),
                  createAction(NEW_NODES, 0, 1, NEW_NODES, 1, 0),
-                 createAction(NEW_NODES, 0, 2, ACTIVE_PAIR, 0, 2),
                  createAction(NEW_NODES, 1, 2, NEW_NODES, 2, 0),
-                 createAction(NEW_NODES, 2, 1, ACTIVE_PAIR, 0, 3),
                  createAction(false),
              });
 
@@ -243,7 +244,7 @@ void initActions() {
              {
                  createAction(DELETE, 0), // Not sure about this delete
                  createAction(VARS, 0, 0, VARS, 0, 2),
-                 createAction(NEW_NODES, 0, 0, VARS, 0, 1),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(true),
                  createAction(false),
              });
@@ -251,18 +252,18 @@ void initActions() {
              {
                  createAction(DELETE, 0), // Not sure about this delete
                  createAction(VARS, 0, 1, VARS, 0, 2),
-                 createAction(NEW_NODES, 0, 0, VARS, 0, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
                  createAction(true),
                  createAction(false),
              });
 
   addActions(SLASH, CONT,
              {createAction(CONT_AUX, 0), createAction(BAR_AUX, 0),
+              createAction(VARS, 1, 2, ACTIVE_PAIR, 0, 0),
               createAction(VARS, 0, 0, NEW_NODES, 1, 0),
               createAction(VARS, 0, 1, NEW_NODES, 0, 1),
               createAction(VARS, 1, 0, NEW_NODES, 0, 0),
               createAction(VARS, 1, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 2, ACTIVE_PAIR, 0, 0),
               createAction(ACTIVE_PAIR, 0, 1, NEW_NODES, 1, 1),
               createAction(ACTIVE_PAIR, 0, 2, NEW_NODES, 0, 3),
               createAction(false)});

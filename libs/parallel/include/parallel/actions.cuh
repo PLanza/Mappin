@@ -23,6 +23,7 @@ typedef struct {
   uint8_t c2;
 } ConnectAction;
 
+// Aim to have Action lists in order VARS > ACTIVE_PAIR > NEW_NODES
 struct __align__(4) Action {
   uint8_t kind;
   union {

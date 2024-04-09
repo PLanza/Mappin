@@ -229,6 +229,7 @@ __global__ void runINet(NodeElement *network,
         ((Port *)(n2 + 1))[p2] = {(NodeElement *)n1, p1};
       }
 
+      // Add any new interactions
       if (p1 == 0 && p2 == 0) {
         if (buf_elems < 5) {
           interact_buf[buf_elems] = {n1, n2};
