@@ -16,10 +16,10 @@ __device__ inline uint32_t actMapIndex(uint8_t left, uint8_t right) {
 }
 
 // Perform connections and return if a new interaction needs to be added
-__device__ bool makeConnections(ConnectAction ca, NodeElement *&n1,
-                                NodeElement *&n2,
-                                NodeElement **const active_pair,
-                                NodeElement **const new_nodes) {
+__device__ inline bool makeConnections(ConnectAction ca, NodeElement *&n1,
+                                       NodeElement *&n2,
+                                       NodeElement **const active_pair,
+                                       NodeElement **const new_nodes) {
   uint64_t p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
 
   if (connect_g(ca.c1) == ACTIVE_PAIR) {
@@ -86,9 +86,64 @@ __device__ bool makeConnections(ConnectAction ca, NodeElement *&n1,
   return p1 == 0 && p2 == 0;
 }
 
-__global__ void runINet(NodeElement *network,
-                        InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
-                        size_t inters_size, bool *global_done) {
+__device__ inline void
+copyNetwork(NodeElement *output, NodeElement *dst_network,
+            InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue) {
+  if (threadIdx.x == 0 && blockIdx.x == 0) {
+    output[3].port_node[1 + 2 * output[4].port_port].port_node = dst_network;
+    dst_network[0] = *output;
+
+    globalQueue->count = 1;
+    globalQueue->head = 1;
+    globalQueue->tail = 2;
+
+    globalQueue->buffer[1] = {output[3].port_node, output[3].port_node};
+  }
+
+  // We assume the output network is a tree structure
+  while (globalQueue->count != 0) {
+    __syncthreads();
+    uint32_t dequed_nodes =
+        globalQueue->count < gridDim.x ? globalQueue->count : gridDim.x;
+    if (threadIdx.x == 0 & blockIdx.x == 0) {
+      int64_t temp;
+      globalQueue->dequeue(&temp, dequed_nodes);
+    }
+    __syncthreads();
+
+    // deque all
+    int64_t index =
+        globalQueue->head - dequed_nodes + threadIdx.x + blockIdx.x * gridDim.x;
+    NodeElement *node;
+    if (threadIdx.x + blockIdx.x * gridDim.x < dequed_nodes) {
+      node = globalQueue->buffer[index % MAX_INTERACTIONS_SIZE].n1;
+    }
+    if (threadIdx.x + blockIdx.x * gridDim.x == 0) {
+      globalQueue->ackDequeue(globalQueue->count);
+    }
+    __syncthreads();
+
+    if (threadIdx.x + blockIdx.x * gridDim.x < dequed_nodes) {
+      dst_network[index] = *node;
+      for (int i = 0; i < NODE_ARITIES[node->header.kind] + 1; i++) {
+        // Redirect matching ports
+        node[1 + 2 * i]
+            .port_node[1 + 2 * node[1 + 2 * i + 1].port_port]
+            .port_node = dst_network + index;
+
+        // Enqueue children
+        globalQueue->enqueue(&index, 1);
+        globalQueue->buffer[index] = {node[1 + 2 * i].port_node,
+                                      node[1 + 2 * i].port_node};
+        globalQueue->ackEnqueue(1);
+      }
+    }
+  }
+}
+
+__global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
+                        size_t inters_size, bool *global_done,
+                        NodeElement *output_net, NodeElement *ouput) {
 
   Interaction interact_buf[5];
   uint8_t buf_elems = 1;
@@ -152,7 +207,7 @@ __global__ void runINet(NodeElement *network,
       // Otherwise copy data from block to global queue
       for (int i = 0; i < 3; i++) {
         globalQueue->buffer[global_queue_idx + i * blockDim.x + threadIdx.x] =
-            block_queue[head + i * blockDim.x + threadIdx.x];
+            block_queue[head + i * blockDim.x + threadIdx.x % BLOCK_QUEUE_SIZE];
       }
       __syncthreads();
       if (threadIdx.x == 0) {
@@ -165,19 +220,19 @@ __global__ void runINet(NodeElement *network,
     // Attempt to enqueue block_queue from global if nearing empty
     if (count < blockDim.x) {
       if (threadIdx.x == 0)
-        globalQueue->enqueue(&global_queue_idx, blockDim.x - count);
+        globalQueue->dequeue(&global_queue_idx, blockDim.x - count);
       __syncthreads();
 
       if (global_queue_idx != -1) {
         if (threadIdx.x < blockDim.x - count)
-          block_queue[tail + threadIdx.x] =
+          block_queue[tail + threadIdx.x % BLOCK_QUEUE_SIZE] =
               globalQueue->buffer[global_queue_idx + threadIdx.x];
         __syncthreads();
 
         if (threadIdx.x == 0) {
           tail += blockDim.x - count;
           count = blockDim.x;
-          globalQueue->ackEnqueue(blockDim.x - count);
+          globalQueue->ackDequeue(blockDim.x - count);
         }
       }
     }
@@ -273,5 +328,6 @@ __global__ void runINet(NodeElement *network,
   }
 
   // at the end copy network back to init_network_d
-  // final network must be smaller than init network so there will be space
+  // or have the host just copy the entire heap!
+  copyNetwork(ouput, output_net, globalQueue);
 }

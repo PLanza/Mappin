@@ -67,8 +67,7 @@ struct __align__(16) Interaction {
 
 template <uint32_t N> class InteractionQueue;
 
-__global__ void runINet(NodeElement *,
-                        InteractionQueue<MAX_INTERACTIONS_SIZE> *, size_t,
-                        bool *);
+__global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *, size_t,
+                        bool *, NodeElement *, NodeElement *);
 
 #endif

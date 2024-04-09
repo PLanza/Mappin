@@ -39,14 +39,15 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
   std::vector<grammar::Token> tokens = grammar->stringToTokens(input_string);
   HostINetwork host_network(grammar->getStackActions(), tokens);
 
-  size_t interactions_size =
-      sizeof(Interaction) * host_network.getInteractions();
-  size_t network_size = sizeof(NodeElement) * host_network.getNetworkSize();
+  size_t interactions_size = host_network.getInteractions();
+  size_t network_size = host_network.getNetworkSize();
 
-  Interaction *interactions = (Interaction *)malloc(interactions_size);
+  Interaction *interactions =
+      (Interaction *)malloc(interactions_size * sizeof(Interaction));
 
   NodeElement *network_d;
-  checkCudaErrors(cudaMalloc((void **)&network_d, network_size));
+  checkCudaErrors(
+      cudaMalloc((void **)&network_d, sizeof(NodeElement) * network_size));
   host_network.initNetwork(network_d, interactions);
 
   // Initialize global queue such that the first set of interactions can be
@@ -65,17 +66,23 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
                          MAX_NETWORK_SIZE * sizeof(NodeElement));
 
   bool *global_done_d;
-  bool global_done_h[grid_dims.x];
+  checkCudaErrors(
+      cudaMalloc((void **)&global_done_d, sizeof(bool) * grid_dims.x));
+
+  NodeElement *output_network_d;
+  checkCudaErrors(cudaMalloc((void **)&output_network_d,
+                             sizeof(NodeElement) * network_size));
 
   // Invoke kernel
-  runINet<<<grid_dims, block_dims>>>(network_d, globalQueue_d,
-                                     interactions_size, global_done_d);
+  runINet<<<grid_dims, block_dims>>>(globalQueue_d, interactions_size,
+                                     global_done_d, output_network_d,
+                                     network_d + network_size - 5);
 
-  NodeElement *network_h = (NodeElement *)malloc(network_size);
-  checkCudaErrors(
-      cudaMemcpy(network_h, network_d, network_size, cudaMemcpyDeviceToHost));
-
-  NodeElement *output = network_h + network_size - 5;
+  NodeElement *output_network_h =
+      (NodeElement *)malloc(sizeof(NodeElement) * network_size);
+  checkCudaErrors(cudaMemcpy(output_network_h, output_network_d,
+                             sizeof(NodeElement) * network_size,
+                             cudaMemcpyDeviceToHost));
 
   checkCudaErrors(cudaFree(globalQueue_d));
   checkCudaErrors(cudaFree(network_d));

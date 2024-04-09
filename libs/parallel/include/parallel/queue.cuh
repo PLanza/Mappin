@@ -30,10 +30,6 @@ template <uint32_t N> __device__ bool ensureDequeue(uint32_t *count) {
 
 // The global top-level queue
 template <uint32_t N> class InteractionQueue {
-  unsigned long long head;
-  unsigned long long tail;
-  int32_t count;
-
   uint32_t enqueing;
   uint32_t dequeing;
 
@@ -61,6 +57,10 @@ template <uint32_t N> class InteractionQueue {
 
 public:
   Interaction buffer[N];
+  unsigned long long head;
+  unsigned long long tail;
+  int32_t count;
+
   __host__ InteractionQueue() : head(0), tail(0), count(0), enqueing(0) {}
 
   __host__ InteractionQueue(Interaction *interactions, size_t size,
@@ -85,6 +85,7 @@ public:
       *index = -1;
   }
 
+  // Doesn't quite work when there are multiple enqueues/dequeues
   __device__ inline void ackEnqueue(size_t size) {
     atomicSub(&this->enqueing, size);
   }
