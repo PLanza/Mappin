@@ -15,6 +15,77 @@ __device__ inline uint32_t actMapIndex(uint8_t left, uint8_t right) {
          MAX_ACTIONS;
 }
 
+// Perform connections and return if a new interaction needs to be added
+__device__ bool makeConnections(ConnectAction ca, NodeElement *&n1,
+                                NodeElement *&n2,
+                                NodeElement **const active_pair,
+                                NodeElement **const new_nodes) {
+  uint64_t p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
+
+  if (connect_g(ca.c1) == ACTIVE_PAIR) {
+    n1 = active_pair[connect_n(ca.c1)];
+  } else if (connect_g(ca.c1) == VARS) {
+    n1 =
+        active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1)].port_node;
+    p1 =
+        active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1)].port_port;
+  } else {
+    n1 = new_nodes[connect_n(ca.c1)];
+  }
+
+  if (connect_g(ca.c2) == ACTIVE_PAIR) {
+    n2 = active_pair[connect_n(ca.c2)];
+  } else if (connect_g(ca.c2) == VARS) {
+    n2 =
+        active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1)].port_node;
+    p2 =
+        active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1)].port_port;
+  } else {
+    n2 = new_nodes[connect_n(ca.c2)];
+  }
+
+  // Potential contention
+  if (connect_g(ca.c1) == VARS) {
+    uint64_t old_node =
+        reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c1)]);
+    uint64_t old_port = connect_p(ca.c1) + 1;
+    unsigned long long assumed_node, assumed_port;
+    do {
+      assumed_node = old_node;
+      assumed_port = old_port;
+      old_node = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1, assumed_node,
+                           reinterpret_cast<uintptr_t>(n2));
+      // Chance of failure here!
+      old_port = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1 + 1,
+                           assumed_port, p2);
+    } while (assumed_node != old_node || assumed_port != old_port);
+  } else {
+    // We want these assignments to be a single memory write
+    ((Port *)(n1 + 1))[p1] = {(NodeElement *)n2, p2};
+  }
+
+  if (connect_g(ca.c2) == VARS) {
+    uint64_t old_node =
+        reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c2)]);
+    uint64_t old_port = connect_p(ca.c2) + 1;
+    unsigned long long assumed_node, assumed_port;
+    do {
+      assumed_node = old_node;
+      assumed_port = old_port;
+      old_node = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2, assumed_node,
+                           reinterpret_cast<uintptr_t>(n1));
+      // Chance of failure here!
+      old_port = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2 + 1,
+                           assumed_port, p1);
+    } while (assumed_node != old_node || assumed_port != old_port);
+  } else {
+    // We want these assignments to be a single memory write
+    ((Port *)(n2 + 1))[p2] = {(NodeElement *)n1, p1};
+  }
+
+  return p1 == 0 && p2 == 0;
+}
+
 __global__ void runINet(NodeElement *network,
                         InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
                         size_t inters_size, bool *global_done) {
@@ -164,73 +235,10 @@ __global__ void runINet(NodeElement *network,
     // Perform connect actions
     while (next_action < MAX_ACTIONS && actions[next_action].kind == CONNECT) {
       ConnectAction ca = actions[next_action].action.connect;
-
       NodeElement *n1, *n2;
-      uint64_t p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
-
-      if (connect_g(ca.c1) == ACTIVE_PAIR) {
-        n1 = active_pair[connect_n(ca.c1)];
-      } else if (connect_g(ca.c1) == VARS) {
-        n1 = active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1)]
-                 .port_node;
-        p1 = active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1)]
-                 .port_port;
-      } else {
-        n1 = new_nodes[connect_n(ca.c1)];
-      }
-
-      if (connect_g(ca.c2) == ACTIVE_PAIR) {
-        n2 = active_pair[connect_n(ca.c2)];
-      } else if (connect_g(ca.c2) == VARS) {
-        n2 = active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1)]
-                 .port_node;
-        p2 = active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1)]
-                 .port_port;
-      } else {
-        n2 = new_nodes[connect_n(ca.c2)];
-      }
-
-      // Potential contention
-      if (connect_g(ca.c1) == VARS) {
-        uint64_t old_node =
-            reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c1)]);
-        uint64_t old_port = connect_p(ca.c1) + 1;
-        unsigned long long assumed_node, assumed_port;
-        do {
-          assumed_node = old_node;
-          assumed_port = old_port;
-          old_node = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1,
-                               assumed_node, reinterpret_cast<uintptr_t>(n2));
-          // Chance of failure here!
-          old_port = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1 + 1,
-                               assumed_port, p2);
-        } while (assumed_node != old_node || assumed_port != old_port);
-      } else {
-        // We want these assignments to be a single memory write
-        ((Port *)(n1 + 1))[p1] = {(NodeElement *)n2, p2};
-      }
-
-      if (connect_g(ca.c2) == VARS) {
-        uint64_t old_node =
-            reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c2)]);
-        uint64_t old_port = connect_p(ca.c2) + 1;
-        unsigned long long assumed_node, assumed_port;
-        do {
-          assumed_node = old_node;
-          assumed_port = old_port;
-          old_node = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2,
-                               assumed_node, reinterpret_cast<uintptr_t>(n1));
-          // Chance of failure here!
-          old_port = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2 + 1,
-                               assumed_port, p1);
-        } while (assumed_node != old_node || assumed_port != old_port);
-      } else {
-        // We want these assignments to be a single memory write
-        ((Port *)(n2 + 1))[p2] = {(NodeElement *)n1, p1};
-      }
 
       // Add any new interactions
-      if (p1 == 0 && p2 == 0) {
+      if (makeConnections(ca, n1, n2, active_pair, new_nodes)) {
         if (buf_elems < 5) {
           interact_buf[buf_elems] = {n1, n2};
           buf_elems++;

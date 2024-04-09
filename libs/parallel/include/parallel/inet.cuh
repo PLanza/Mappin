@@ -10,7 +10,7 @@ typedef uint8_t node_kind;
 inline const uint8_t NODE_KINDS = 22;
 
 enum NodeKind {
-  OUTPUT,
+  OUTPUT, // Not really necessary
   DELETE,
   DELTA,
   GAMMA, // γ_0 is regular γ, γ_1 is ×
@@ -62,7 +62,7 @@ struct __align__(16) Interaction {
   NodeElement *n2;
 };
 
-#define MAX_NETWORK_SIZE (1024 * 1024 * 1024)
+#define MAX_NETWORK_SIZE (1024 * 1024 * 1024) // ~44.7M nodes
 #define MAX_INTERACTIONS_SIZE (1024 * 1024)
 
 template <uint32_t N> class InteractionQueue;

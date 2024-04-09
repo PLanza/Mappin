@@ -44,9 +44,10 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
   size_t network_size = sizeof(NodeElement) * host_network.getNetworkSize();
 
   Interaction *interactions = (Interaction *)malloc(interactions_size);
-  NodeElement *network_h = (NodeElement *)malloc(network_size);
 
-  host_network.initNetwork(network_h, interactions);
+  NodeElement *network_d;
+  checkCudaErrors(cudaMalloc((void **)&network_d, network_size));
+  host_network.initNetwork(network_d, interactions);
 
   // Initialize global queue such that the first set of interactions can be
   // immediately loaded by the threads
@@ -59,12 +60,6 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
                              sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>),
                              cudaMemcpyHostToDevice));
 
-  NodeElement *network_d;
-
-  checkCudaErrors(cudaMalloc((void **)&network_d, network_size));
-  checkCudaErrors(
-      cudaMemcpy(network_d, network_h, network_size, cudaMemcpyHostToDevice));
-
   cudaDeviceSetLimit(cudaLimitMallocHeapSize,
                      MAX_INTERACTIONS_SIZE * sizeof(Interaction) +
                          MAX_NETWORK_SIZE * sizeof(NodeElement));
@@ -76,8 +71,11 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
   runINet<<<grid_dims, block_dims>>>(network_d, globalQueue_d,
                                      interactions_size, global_done_d);
 
+  NodeElement *network_h = (NodeElement *)malloc(network_size);
   checkCudaErrors(
       cudaMemcpy(network_h, network_d, network_size, cudaMemcpyDeviceToHost));
+
+  NodeElement *output = network_h + network_size - 5;
 
   checkCudaErrors(cudaFree(globalQueue_d));
   checkCudaErrors(cudaFree(network_d));

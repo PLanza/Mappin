@@ -231,18 +231,24 @@ size_t HostINetwork::getNetworkSize() {
 
 size_t HostINetwork::getInteractions() { return this->interactions.size(); }
 
+// Return the output node
 void HostINetwork::initNetwork(NodeElement *network,
                                Interaction *interactions) {
   size_t i = 0;
   for (auto const &element : this->network) {
     size_t element_size = 1 + 2 * (NODE_ARITIES_H[element[0].header.kind] + 1);
 
-    network[i] = element[0];
+    NodeElement node[element_size];
+    node[0] = element[0];
+
     for (int j = 1; j < element_size; j++) {
-      network[i + j] = element[j];
       if (j % 2 == 1)
-        network[i + j].port_node = network + (uint64_t)element[j].port_node;
+        node[j].port_node = network + (uint64_t)element[j].port_node;
+      else
+        node[j] = element[j];
     }
+    cudaMemcpy(network + i, node, sizeof(NodeElement) * element_size,
+               cudaMemcpyHostToDevice);
 
     i += element_size;
   }
