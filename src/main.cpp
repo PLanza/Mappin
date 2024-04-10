@@ -2,7 +2,7 @@
 #include <generate/grammar/lrgrammar.hpp>
 #include <generate/grammar_parser.hpp>
 #include <iostream>
-#include <parallel/run.cuh>
+#include <parallel/run.hpp>
 #include <parse/draw.hpp>
 #include <parse/inet.hpp>
 #include <parse/nodes.hpp>

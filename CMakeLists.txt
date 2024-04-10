@@ -12,8 +12,10 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 
 # Required for coding remotely on a computer without a GPU
-set(CMAKE_CUDA_ARCHITECTURES 80)
-set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+# set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES 80)
+endif()
 
 set(PROJECT_NAME
   mappin
@@ -52,7 +54,7 @@ set(LIBRARIES
 
 project(${PROJECT_NAME} 
         DESCRIPTION "Massively Parallel Parsing with Interaction Nets"
-        LANGUAGES CXX
+        LANGUAGES CXX CUDA
 )
 
 # Create an executable using source files specified as SOURCE and with header

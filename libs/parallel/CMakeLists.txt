@@ -22,7 +22,7 @@ set(HEADERS_DIR
   include/${LIBRARY_NAME}
 )
 set(HEADERS
-  ${HEADERS_DIR}/run.cuh
+  ${HEADERS_DIR}/run.hpp
   ${HEADERS_DIR}/inet.cuh
   ${HEADERS_DIR}/actions.cuh
   ${HEADERS_DIR}/network.cuh
