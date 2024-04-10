@@ -1,9 +1,10 @@
 #include "../include/parallel/network.cuh"
 
 void HostINetwork::connect(uint64_t n1, uint64_t p1, uint64_t n2, uint64_t p2) {
-  // We want these assignments to be a single memory write
-  ((Port *)(n1 + 1))[p1] = {(NodeElement *)n2, p2};
-  ((Port *)(n2 + 1))[p2] = {(NodeElement *)n1, p1};
+  this->network[n1][1 + 2 * p1] = {.port_node = (NodeElement *)n2};
+  this->network[n1][1 + 2 * p1 + 1] = {.port_port = p2};
+  this->network[n2][1 + 2 * p2] = {.port_node = (NodeElement *)n1};
+  this->network[n2][1 + 2 * p2 + 1] = {.port_port = p1};
 
   if (p1 == 0 && p2 == 0)
     this->interactions.push_back({(NodeElement *)n1, (NodeElement *)n2});
@@ -44,13 +45,13 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
   uint64_t prev_rule = product;
   for (uint32_t rule : action.reduce_rules) {
     uint64_t temp = this->createNode(SYM, rule);
-    connect(prev_rule, 1, temp, 0);
+    this->connect(prev_rule, 1, temp, 0);
     prev_rule = temp;
   }
-  connect(prev_rule, 1, this->createNode(END, 0), 0);
+  this->connect(prev_rule, 1, this->createNode(END, 0), 0);
 
   uint64_t slash = this->createNode(SLASH, 0);
-  connect(slash, 0, product, 2);
+  this->connect(slash, 0, product, 2);
 
   uint64_t lhs_start = (action.lhs.size() == 0)
                            ? this->createNode(END, 0)
@@ -60,13 +61,13 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.lhs.size(); i++) {
     uint64_t temp = stackStateToNode(action.lhs[i]);
-    connect(lhs_end, 1, temp, 0);
+    this->connect(lhs_end, 1, temp, 0);
     lhs_end = temp;
   }
   // Cap chains with | $ >- nodes
   if (this->getNodeKind(lhs_end) == SYM) {
     uint64_t temp = this->createNode(END, 0);
-    connect(lhs_end, 1, temp, 0);
+    this->connect(lhs_end, 1, temp, 0);
     lhs_end = temp;
   }
 
@@ -78,13 +79,13 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.rhs.size(); i++) {
     uint64_t temp = stackStateToNode(action.rhs[i]);
-    connect(rhs_end, 1, temp, 0);
+    this->connect(rhs_end, 1, temp, 0);
     rhs_end = temp;
   }
   // Cap chains with | $ >- nodes
   if (this->getNodeKind(rhs_end) == SYM) {
     uint64_t temp = this->createNode(END, 0);
-    connect(rhs_end, 1, temp, 0);
+    this->connect(rhs_end, 1, temp, 0);
     rhs_end = temp;
   }
 
@@ -95,19 +96,19 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
 
   // Create -< - |-| - >- connections
   if (this->getNodeKind(lhs_end) == BAR && this->getNodeKind(rhs_end) == BAR)
-    connect(lhs_end, 1, rhs_end, 1);
+    this->connect(lhs_end, 1, rhs_end, 1);
   else if (this->getNodeKind(lhs_end) == BAR &&
            this->getNodeKind(rhs_end) == END) {
     uint64_t end = this->createNode(END, 0);
-    connect(lhs_end, 1, end, 0);
+    this->connect(lhs_end, 1, end, 0);
   } else if (this->getNodeKind(lhs_end) == END &&
              this->getNodeKind(rhs_end) == BAR) {
     uint64_t end = this->createNode(END, 0);
-    connect(rhs_end, 1, end, 0);
+    this->connect(rhs_end, 1, end, 0);
   }
 
-  connect(slash, 1, lhs_start, 0);
-  connect(slash, 2, rhs_start, 0);
+  this->connect(slash, 1, lhs_start, 0);
+  this->connect(slash, 2, rhs_start, 0);
   return product;
 }
 
@@ -115,66 +116,66 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
 uint64_t HostINetwork::createComposeNetwork(uint64_t xs, uint64_t ys) {
   // If passed in later layers of compositions
   uint64_t fold_xs = this->createNode(FOLD, 0);
-  connect(fold_xs, 1, this->createNode(NIL, 0), 0);
+  this->connect(fold_xs, 1, this->createNode(NIL, 0), 0);
 
   uint64_t fold_ys = this->createNode(FOLD, 0);
-  connect(fold_ys, 1, this->createNode(NIL, 0), 0);
+  this->connect(fold_ys, 1, this->createNode(NIL, 0), 0);
 
   if (this->getNodeKind(xs) == CONS)
-    connect(xs, 0, fold_xs, 0);
+    this->connect(xs, 0, fold_xs, 0);
   else if (this->getNodeKind(xs) == FOLD)
-    connect(xs, 3, fold_xs, 0);
+    this->connect(xs, 3, fold_xs, 0);
 
   if (this->getNodeKind(ys) == CONS)
-    connect(ys, 0, fold_ys, 0);
+    this->connect(ys, 0, fold_ys, 0);
   else if (this->getNodeKind(ys) == FOLD)
-    connect(ys, 3, fold_ys, 0);
+    this->connect(ys, 3, fold_ys, 0);
 
   uint64_t gamma_x = this->createNode(GAMMA, 0);
-  connect(gamma_x, 0, fold_xs, 2);
+  this->connect(gamma_x, 0, fold_xs, 2);
   uint64_t gamma_acc_xs = this->createNode(GAMMA, 0);
-  connect(gamma_acc_xs, 0, gamma_x, 2);
+  this->connect(gamma_acc_xs, 0, gamma_x, 2);
 
   uint64_t append = this->createNode(APPEND, 0);
-  connect(append, 0, gamma_acc_xs, 1);
-  connect(append, 1, fold_ys, 3);
-  connect(append, 2, gamma_acc_xs, 2);
+  this->connect(append, 0, gamma_acc_xs, 1);
+  this->connect(append, 1, fold_ys, 3);
+  this->connect(append, 2, gamma_acc_xs, 2);
 
   uint64_t gamma_y = this->createNode(GAMMA, 0);
-  connect(gamma_y, 0, fold_ys, 2);
+  this->connect(gamma_y, 0, fold_ys, 2);
   uint64_t gamma_acc_ys = this->createNode(GAMMA, 0);
-  connect(gamma_acc_ys, 0, gamma_y, 2);
+  this->connect(gamma_acc_ys, 0, gamma_y, 2);
 
   uint64_t copy_acc_ys = this->createNode(DELTA, 1);
-  connect(copy_acc_ys, 0, gamma_acc_ys, 1);
+  this->connect(copy_acc_ys, 0, gamma_acc_ys, 1);
 
   uint64_t if_ = this->createNode(IF, 1);
-  connect(if_, 2, copy_acc_ys, 2);
-  connect(if_, 3, gamma_acc_ys, 2);
+  this->connect(if_, 2, copy_acc_ys, 2);
+  this->connect(if_, 3, gamma_acc_ys, 2);
 
   uint64_t action_cons = this->createNode(CONS, 0);
-  connect(action_cons, 0, if_, 1);
-  connect(action_cons, 2, copy_acc_ys, 1);
+  this->connect(action_cons, 0, if_, 1);
+  this->connect(action_cons, 2, copy_acc_ys, 1);
 
   uint64_t cont = this->createNode(CONT, 0);
-  connect(cont, 2, if_, 0);
+  this->connect(cont, 2, if_, 0);
 
   uint64_t prod_x = this->createNode(GAMMA, 1);
-  connect(prod_x, 0, gamma_x, 1);
-  connect(prod_x, 2, cont, 0);
+  this->connect(prod_x, 0, gamma_x, 1);
+  this->connect(prod_x, 2, cont, 0);
 
   uint64_t prod_y = this->createNode(GAMMA, 1);
-  connect(prod_y, 0, gamma_y, 1);
-  connect(prod_y, 2, cont, 1);
+  this->connect(prod_y, 0, gamma_y, 1);
+  this->connect(prod_y, 2, cont, 1);
 
   uint64_t rule_cons = this->createNode(CONS, 0);
-  connect(rule_cons, 1, prod_x, 1);
-  connect(rule_cons, 2, prod_y, 1);
+  this->connect(rule_cons, 1, prod_x, 1);
+  this->connect(rule_cons, 2, prod_y, 1);
 
   uint64_t prod_result = this->createNode(GAMMA, 1);
-  connect(prod_result, 0, action_cons, 1);
-  connect(prod_result, 1, rule_cons, 0);
-  connect(prod_result, 2, cont, 3);
+  this->connect(prod_result, 0, action_cons, 1);
+  this->connect(prod_result, 1, rule_cons, 0);
+  this->connect(prod_result, 2, cont, 3);
 
   return fold_xs;
 }
@@ -190,8 +191,8 @@ void HostINetwork::createParserNetwork(
     for (grammar::StackAction &action : actions) {
       uint64_t action_net = this->createStackActionNetwork(action);
       uint64_t cons = this->createNode(CONS, 0);
-      connect(cons, 2, tail, 0);
-      connect(cons, 1, action_net, 0);
+      this->connect(cons, 2, tail, 0);
+      this->connect(cons, 1, action_net, 0);
       tail = cons;
     }
     input_action_lists.push_back(tail);
@@ -211,7 +212,7 @@ void HostINetwork::createParserNetwork(
   }
 
   uint64_t out = this->createNode(OUTPUT, 0);
-  connect(out, 1, prev_layer[0], 3);
+  this->connect(out, 1, prev_layer[0], 3);
 }
 
 HostINetwork::HostINetwork(std::vector<grammar::StackAction> *stack_actions,
