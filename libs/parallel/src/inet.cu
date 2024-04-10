@@ -16,10 +16,10 @@ __device__ inline uint32_t actMapIndex(uint8_t left, uint8_t right) {
 }
 
 // Perform connections and return if a new interaction needs to be added
-__device__ inline bool makeConnections(ConnectAction ca, NodeElement *&n1,
-                                       NodeElement *&n2,
-                                       NodeElement **const active_pair,
-                                       NodeElement **const new_nodes) {
+__device__ inline bool makeConnection(ConnectAction ca, NodeElement *&n1,
+                                      NodeElement *&n2,
+                                      NodeElement **const active_pair,
+                                      NodeElement **const new_nodes) {
   uint64_t p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
 
   if (connect_g(ca.c1) == ACTIVE_PAIR) {
@@ -61,7 +61,7 @@ __device__ inline bool makeConnections(ConnectAction ca, NodeElement *&n1,
     } while (assumed_node != old_node || assumed_port != old_port);
   } else {
     // We want these assignments to be a single memory write
-    ((Port *)(n1 + 1))[p1] = {(NodeElement *)n2, p2};
+    ((Port *)(n1 + 1))[p1] = {n2, p2};
   }
 
   if (connect_g(ca.c2) == VARS) {
@@ -80,12 +80,13 @@ __device__ inline bool makeConnections(ConnectAction ca, NodeElement *&n1,
     } while (assumed_node != old_node || assumed_port != old_port);
   } else {
     // We want these assignments to be a single memory write
-    ((Port *)(n2 + 1))[p2] = {(NodeElement *)n1, p1};
+    ((Port *)(n2 + 1))[p2] = {n1, p1};
   }
 
   return p1 == 0 && p2 == 0;
 }
 
+// Could try separating this into a separate kernel
 __device__ inline void
 copyNetwork(NodeElement *output, NodeElement *dst_network,
             InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue) {
@@ -105,6 +106,7 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
     __syncthreads();
     uint32_t dequed_nodes =
         globalQueue->count < gridDim.x ? globalQueue->count : gridDim.x;
+    // may need a done flag to synchronize across all blocks
     if (threadIdx.x == 0 & blockIdx.x == 0) {
       int64_t temp;
       globalQueue->dequeue(&temp, dequed_nodes);
@@ -126,7 +128,7 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
     if (threadIdx.x + blockIdx.x * gridDim.x < dequed_nodes) {
       dst_network[index] = *node;
       for (int i = 0; i < NODE_ARITIES[node->header.kind] + 1; i++) {
-        // Redirect matching ports
+        // Redirect matching ports (probably not necessary)
         node[1 + 2 * i]
             .port_node[1 + 2 * node[1 + 2 * i + 1].port_port]
             .port_node = dst_network + index;
@@ -136,6 +138,7 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
         globalQueue->buffer[index] = {node[1 + 2 * i].port_node,
                                       node[1 + 2 * i].port_node};
         globalQueue->ackEnqueue(1);
+        free(node);
       }
     }
   }
@@ -178,20 +181,18 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     block_done[threadIdx.x / 8] |= ((uint8_t)buf_elems == 0)
                                    << (threadIdx.x % 8);
 
-    // Set first bit to 0 if the queues are not empty
-    if (threadIdx.x == 0)
-      block_done[0] &= ((uint8_t)~0)
-                       << (globalQueue->isEmpty() || head == tail);
-
     // If all threads in block are done
-    if (__syncthreads_and(block_done[threadIdx.x / 8] == (uint8_t)~0u)) {
+    if (__syncthreads_and(block_done[threadIdx.x / 8] == (uint8_t)~0u) &&
+        head == tail) {
       global_done[blockIdx.x] = true;
       // If all blocks are done
-      if (__syncthreads_and(global_done[threadIdx.x % gridDim.x]))
+      if (__syncthreads_and(global_done[threadIdx.x % gridDim.x]) &&
+          globalQueue->isEmpty())
         // Might need to synchronize across grid
         break;
 
-      continue;
+      if (globalQueue->isEmpty())
+        continue;
     }
 
     // Attempt to dequeue block_queue if it's full
@@ -247,7 +248,7 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     }
 
     bool switch_nodes = interact_buf[buf_elems].n1->header.kind >
-                        interact_buf[0].n2->header.kind;
+                        interact_buf[buf_elems].n2->header.kind;
     // If there is enough register space, consider loading into register
     NodeElement *left =
         switch_nodes ? interact_buf[buf_elems].n2 : interact_buf[buf_elems].n1;
@@ -286,6 +287,7 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
       next_action++;
       next_new++;
     }
+    __syncthreads();
 
     // Perform connect actions
     while (next_action < MAX_ACTIONS && actions[next_action].kind == CONNECT) {
@@ -293,27 +295,29 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
       NodeElement *n1, *n2;
 
       // Add any new interactions
-      if (makeConnections(ca, n1, n2, active_pair, new_nodes)) {
+      if (makeConnection(ca, n1, n2, active_pair, new_nodes)) {
         if (buf_elems < 5) {
           interact_buf[buf_elems] = {n1, n2};
           buf_elems++;
         } else {
           // WARNING: awful code!
           // If block queue full, enqueue onto global queue
-          while (!ensureEnqueue<BLOCK_QUEUE_SIZE>(&count)) {
+          if (!ensureEnqueue<BLOCK_QUEUE_SIZE>(&count)) {
             int64_t g_q_idx = -1;
             while (g_q_idx != -1) {
               globalQueue->enqueue(&g_q_idx, 1);
             }
             globalQueue->buffer[g_q_idx] = {n1, n2};
             globalQueue->ackEnqueue(1);
+          } else {
+            block_queue[atomicAdd(&tail, 1) % BLOCK_QUEUE_SIZE] = {n1, n2};
           }
-          block_queue[atomicAdd(&tail, 1) % BLOCK_QUEUE_SIZE] = {n1, n2};
         }
       }
 
       next_action++;
     }
+    __syncthreads();
 
     // Perform Free actions
     while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
@@ -327,7 +331,5 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     }
   }
 
-  // at the end copy network back to init_network_d
-  // or have the host just copy the entire heap!
   copyNetwork(ouput, output_net, globalQueue);
 }

@@ -30,6 +30,7 @@ template <uint32_t N> __device__ bool ensureDequeue(uint32_t *count) {
 
 // The global top-level queue
 template <uint32_t N> class InteractionQueue {
+  // Need to change these into queues of tickets
   uint32_t enqueing;
   uint32_t dequeing;
 
@@ -61,11 +62,12 @@ public:
   unsigned long long tail;
   int32_t count;
 
-  __host__ InteractionQueue() : head(0), tail(0), count(0), enqueing(0) {}
+  __host__ InteractionQueue()
+      : head(0), tail(0), count(0), enqueing(0), dequeing(0) {}
 
   __host__ InteractionQueue(Interaction *interactions, size_t size,
                             size_t num_threads)
-      : tail(size), count(size), enqueing(0) {
+      : tail(size), count(size), enqueing(0), dequeing(0) {
     assert(size < N);
     this->head = std::min(num_threads, size);
 
@@ -74,13 +76,14 @@ public:
 
   __device__ inline bool isEmpty() { return !(head == tail); }
 
+  // TODO: separate into enqueue block and enqueue thread
   __device__ void enqueue(int64_t *index, size_t size) {
     if (this->ensureEnqueue(size)) {
       // If full wait until dequing operations are done
       while (this->count + this->dequeing >= N) {
       }
-      atomicAdd(&this->enqueing, size);
       *index = atomicAdd(&this->tail, size) % N;
+      atomicAdd(&this->enqueing, size);
     } else
       *index = -1;
   }
@@ -95,8 +98,8 @@ public:
       // If empty wait until enqueing operations are done
       while (this->count - this->enqueing <= 0) {
       }
-      atomicAdd(&this->dequeing, size);
       *index = atomicAdd(&this->head, size) % N;
+      atomicAdd(&this->dequeing, size);
     } else {
       *index = -1;
     }

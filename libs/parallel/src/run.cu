@@ -4,6 +4,7 @@
 #include "../include/parallel/queue.cuh"
 #include "generate/grammar.hpp"
 #include <cstdlib>
+#include <iostream>
 #include <memory>
 #include <string>
 
@@ -86,6 +87,8 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
 
   checkCudaErrors(cudaFree(globalQueue_d));
   checkCudaErrors(cudaFree(network_d));
+
+  std::cout << "Done!" << std::endl;
 
   // traverse network_h and retrieve parse
 }
