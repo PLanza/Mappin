@@ -2,6 +2,7 @@
 #include "../include/parallel/inet.cuh"
 #include "../include/parallel/network.cuh"
 #include "../include/parallel/queue.cuh"
+#include "../include/parallel/run.hpp"
 #include "generate/grammar.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -23,9 +24,9 @@ void checkCudaErrors(cudaError_t err) {
   checkCudaErrors(err, __FILE__, __LINE__);
 }
 
-void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
-  cudaDeviceProp *prop;
-  checkCudaErrors(cudaGetDeviceProperties(prop, 0));
+void parse(std::unique_ptr<grammar::Grammar> grammar,
+           std::string &input_string) {
+  std::cout << "Parsing: " << input_string << std::endl;
 
   dim3 grid_dims(16, 1, 1);
   dim3 block_dims(256, 1, 1);
@@ -37,6 +38,7 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
   checkCudaErrors(cudaMemcpyToSymbol(actions_map, actions_map_h,
                                      sizeof(Action) * ACTIONS_MAP_SIZE));
 
+  // Set up starting interaction network
   std::vector<grammar::Token> tokens = grammar->stringToTokens(input_string);
   HostINetwork host_network(grammar->getStackActions(), tokens);
 
@@ -53,12 +55,13 @@ void run(std::unique_ptr<grammar::Grammar> grammar, std::string input_string) {
 
   // Initialize global queue such that the first set of interactions can be
   // immediately loaded by the threads
-  InteractionQueue<MAX_INTERACTIONS_SIZE> globalQueue_h(
-      interactions, interactions_size, grid_dims.x * block_dims.x);
+  InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue_h =
+      new InteractionQueue<MAX_INTERACTIONS_SIZE>(
+          interactions, interactions_size, grid_dims.x * block_dims.x);
   InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue_d;
   checkCudaErrors(cudaMalloc((void **)&globalQueue_d,
                              sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>)));
-  checkCudaErrors(cudaMemcpy(globalQueue_d, &globalQueue_h,
+  checkCudaErrors(cudaMemcpy(globalQueue_d, globalQueue_h,
                              sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>),
                              cudaMemcpyHostToDevice));
 

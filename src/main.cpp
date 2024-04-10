@@ -8,7 +8,6 @@
 #include <parse/nodes.hpp>
 #include <parse/parser.hpp>
 #include <util/util.hpp>
-#include <utility>
 
 int main() {
   std::unique_ptr<grammar::Grammar> g;
@@ -30,10 +29,8 @@ int main() {
 
   std::string parseString = "B B B B B B B B B B B B X Z Z Z Z Z Z Z Z Z Z Z Z "
                             "C C C C C C C C C C C C Y";
-  std::cout << "\nParsing: " << parseString << std::endl;
 
-  run(std::move(g), parseString);
-
+  parse(std::move(g), parseString);
   // inet::init();
   // std::vector<grammar::Token> tokens = g->stringToTokens(parseString);
   // inet::Node *output = inet::createParserNetwork(g->getStackActions(),
