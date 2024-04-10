@@ -37,6 +37,8 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
   bool seen_free = false;
   bool seen_none = false;
 
+  NodeKind active_pair[2] = {n1, n2};
+
   std::vector<uint8_t> new_arities;
   for (Action const &action : actions) {
     switch (action.kind) {
@@ -56,7 +58,7 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
       switch (connect_g(c1)) {
       case ACTIVE_PAIR:
       case VARS: {
-        if (connect_n(c1) > 1 || connect_p(c1) > NODE_ARITIES_H[n1])
+        if (connect_n(c1) > 1 || connect_p(c1) > NODE_ARITIES_H[active_pair[connect_n(c1)]])
           return false;
         break;
       }
@@ -71,7 +73,7 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
       switch (connect_g(c2)) {
       case ACTIVE_PAIR:
       case VARS: {
-        if (connect_n(c2) > 1 || connect_p(c2) > NODE_ARITIES_H[n2])
+        if (connect_n(c2) > 1 || connect_p(c2) > NODE_ARITIES_H[active_pair[connect_n(c2)]])
           return false;
         break;
       }
@@ -82,10 +84,13 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
         break;
       }
       }
+      break;
     }
     case FREE: {
+      seen_free = true;
       if (seen_none)
         return false;
+      break;
     }
     case NONE: {
       seen_none = true;
@@ -110,6 +115,11 @@ void addActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
 
 void addActions(NodeKind n1, NodeKind n2, bool matches,
                 std::vector<Action> actions) {
+  if (!checkActions(n1, n2, actions)) {
+    std::cout << "Error adding action between node types " << n1 << " and "
+              << n2 << std::endl;
+    return;
+  }
   for (int i = 0; i < actions.size(); i++) {
     if (matches)
       actions_map_h[actMapIndex(n1, n2) + i] = actions[i];
@@ -197,6 +207,8 @@ void addDeltaActions() {
 void initActions() {
   for (int i = 0; i < NODE_KINDS * NODE_KINDS * 2 * MAX_ACTIONS; i++)
     actions_map_h[i] = {NONE, {false}};
+  addDeltaActions();
+  addDeleteActions();
   addActions(GAMMA, GAMMA, true,
              {
                  createAction(VARS, 0, 0, VARS, 1, 0),
