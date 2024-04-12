@@ -1,12 +1,12 @@
 #ifndef __MAPPIN_PARALLEL_QUEUE__
 #define __MAPPIN_PARALLEL_QUEUE__
 
-#include "inet.cuh"
-#include <algorithm>
+#include "inet.hpp"
+
 #include <cassert>
 #include <cstdint>
 
-template <uint32_t N> __device__ bool ensureEnqueue(uint32_t *count) {
+template <uint32_t N> __device__ bool ensureEnqueue(int32_t *count) {
   uint32_t num = *count;
   while (true) {
     if (num >= N)
@@ -17,12 +17,12 @@ template <uint32_t N> __device__ bool ensureEnqueue(uint32_t *count) {
   }
 }
 
-template <uint32_t N> __device__ bool ensureDequeue(uint32_t *count) {
+template <uint32_t N> __device__ bool ensureDequeue(int32_t *count) {
   uint32_t num = *count;
   while (true) {
     if (num <= 0)
       return false;
-    if (atomicSub(count, 1) > N)
+    if (atomicSub(count, 1) > 0)
       return true;
     num = atomicAdd(count, 1) + 1;
   }
@@ -39,7 +39,7 @@ template <uint32_t N> class InteractionQueue {
     while (true) {
       if (num >= N)
         return false;
-      if (atomicAdd(&this->count, size) <= N)
+      if (atomicAdd(&this->count, size) < N)
         return true;
       num = atomicSub(&this->count, size) - size;
     }
@@ -50,7 +50,7 @@ template <uint32_t N> class InteractionQueue {
     while (true) {
       if (num <= 0)
         return false;
-      if (atomicSub(&this->count, size) >= 0)
+      if (atomicSub(&this->count, size) > 0)
         return true;
       num = atomicAdd(&this->count, size) + size;
     }
@@ -67,9 +67,10 @@ public:
 
   __host__ InteractionQueue(Interaction *interactions, size_t size,
                             size_t num_threads)
-      : tail(size), count(size), enqueing(0), dequeing(0) {
+      : tail(size), enqueing(0), dequeing(0) {
     assert(size < N);
     this->head = std::min(num_threads, size);
+    this->count = num_threads > size ? 0 : size - num_threads;
 
     memcpy(this->buffer, interactions, size * sizeof(Interaction));
   }

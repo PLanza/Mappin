@@ -4,14 +4,14 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "inet.cuh"
+#include "inet.hpp"
 
 enum ActionKind { NEW, CONNECT, FREE, NONE };
 enum Group { ACTIVE_PAIR, VARS, NEW_NODES };
 
 typedef struct {
   node_kind kind;
-  int16_t value;
+  int8_t value;
 } NewNodeAction;
 
 #define connect_g(connect) (connect >> 6 & 0b11)
@@ -23,8 +23,7 @@ typedef struct {
   uint8_t c2;
 } ConnectAction;
 
-// Aim to have Action lists in order VARS > ACTIVE_PAIR > NEW_NODES
-struct __align__(4) Action {
+struct Action {
   uint8_t kind;
   union {
     NewNodeAction new_node;
@@ -40,6 +39,5 @@ inline const size_t ACTIONS_MAP_SIZE =
 void initActions();
 
 extern Action actions_map_h[ACTIONS_MAP_SIZE];
-__constant__ Action actions_map[ACTIONS_MAP_SIZE];
 
 #endif

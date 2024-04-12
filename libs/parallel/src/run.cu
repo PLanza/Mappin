@@ -1,6 +1,7 @@
-#include "../include/parallel/actions.cuh"
-#include "../include/parallel/inet.cuh"
-#include "../include/parallel/network.cuh"
+#include "../include/parallel/actions.hpp"
+#include "../include/parallel/inet.hpp"
+#include "../include/parallel/kernel.cuh"
+#include "../include/parallel/network.hpp"
 #include "../include/parallel/queue.cuh"
 #include "../include/parallel/run.hpp"
 #include "generate/grammar.hpp"
@@ -9,7 +10,7 @@
 #include <memory>
 #include <string>
 
-void checkCudaErrors(cudaError_t err, const char *file, const int line) {
+void _checkCudaErrors(cudaError_t err, const char *file, const int line) {
   if (cudaSuccess != err) {
     const char *errorStr = cudaGetErrorString(err);
     fprintf(stderr,
@@ -20,9 +21,7 @@ void checkCudaErrors(cudaError_t err, const char *file, const int line) {
   }
 }
 
-void checkCudaErrors(cudaError_t err) {
-  checkCudaErrors(err, __FILE__, __LINE__);
-}
+#define checkCudaErrors(err) _checkCudaErrors(err, __FILE__, __LINE__)
 
 void parse(std::unique_ptr<grammar::Grammar> grammar,
            std::string &input_string) {
@@ -33,10 +32,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
 
   initActions();
 
-  checkCudaErrors(cudaMemcpyToSymbol(NODE_ARITIES, NODE_ARITIES_H,
-                                     sizeof(uint8_t) * NODE_KINDS));
-  checkCudaErrors(cudaMemcpyToSymbol(actions_map, actions_map_h,
-                                     sizeof(Action) * ACTIONS_MAP_SIZE));
+  copyConstantData();
 
   // Set up starting interaction network
   std::vector<grammar::Token> tokens = grammar->stringToTokens(input_string);
@@ -80,7 +76,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   // Invoke kernel
   runINet<<<grid_dims, block_dims>>>(globalQueue_d, interactions_size,
                                      global_done_d, output_network_d,
-                                     network_d + network_size - 5);
+                                     network_d + network_size - 5, network_d);
 
   NodeElement *output_network_h =
       (NodeElement *)malloc(sizeof(NodeElement) * network_size);

@@ -2,13 +2,14 @@
 #define __MAPPIN_PARALLEL_NETWORK__
 
 #include "generate/grammar.hpp"
-#include "inet.cuh"
+#include "inet.hpp"
 #include <cstddef>
 #include <vector>
 
 class HostINetwork {
 private:
   std::vector<NodeElement *> network;
+  std::vector<size_t> node_positions;
   std::vector<Interaction> interactions;
 
   uint64_t createNode(node_kind, uint32_t);

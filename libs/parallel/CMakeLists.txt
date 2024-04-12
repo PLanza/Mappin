@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
 
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
+
 set(PROJECT_NAME
   parallel
 )
@@ -12,20 +15,21 @@ set(SOURCE_DIR
     src
 )
 set(SOURCE
-    ${SOURCE_DIR}/inet.cu
     ${SOURCE_DIR}/actions.cu
     ${SOURCE_DIR}/network.cu
     ${SOURCE_DIR}/run.cu
+    ${SOURCE_DIR}/inet.cu
 )
 
 set(HEADERS_DIR
   include/${LIBRARY_NAME}
 )
 set(HEADERS
+  ${HEADERS_DIR}/actions.hpp
+  ${HEADERS_DIR}/inet.hpp
   ${HEADERS_DIR}/run.hpp
-  ${HEADERS_DIR}/inet.cuh
-  ${HEADERS_DIR}/actions.cuh
-  ${HEADERS_DIR}/network.cuh
+  ${HEADERS_DIR}/kernel.cuh
+  ${HEADERS_DIR}/network.hpp
   ${HEADERS_DIR}/queue.cuh
 )
 

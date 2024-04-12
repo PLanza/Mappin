@@ -12,29 +12,29 @@ set(SOURCE_DIR
     src
 )
 set(SOURCE
+    ${SOURCE_DIR}/draw.cpp
     ${SOURCE_DIR}/inet.cpp
     ${SOURCE_DIR}/nodes.cpp
     ${SOURCE_DIR}/parser.cpp
-    ${SOURCE_DIR}/draw.cpp
 )
 
 set(HEADERS_DIR
   include/${LIBRARY_NAME}
 )
 set(HEADERS
+  ${HEADERS_DIR}/draw.hpp
   ${HEADERS_DIR}/inet.hpp
   ${HEADERS_DIR}/nodes.hpp
   ${HEADERS_DIR}/parser.hpp
-  ${HEADERS_DIR}/draw.hpp
 )
 
 set(LIBRARIES
-  generate
   drag
+  generate
 )
 
 project(${PROJECT_NAME}
-        DESCRIPTION "Mappin's parser"
+        DESCRIPTION "The CPU implementation of Mappin's parser"
         LANGUAGES CXX
 )
 

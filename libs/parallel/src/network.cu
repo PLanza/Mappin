@@ -1,4 +1,4 @@
-#include "../include/parallel/network.cuh"
+#include "../include/parallel/network.hpp"
 
 void HostINetwork::connect(uint64_t n1, uint64_t p1, uint64_t n2, uint64_t p2) {
   this->network[n1][1 + 2 * p1] = {.port_node = (NodeElement *)n2};
@@ -16,7 +16,15 @@ uint64_t HostINetwork::createNode(node_kind kind, uint32_t value) {
   NodeElement *node = new NodeElement[1 + 2 * (NODE_ARITIES_H[kind] + 1)];
   node[0] = {{kind, value}};
 
+  if (this->node_positions.size() == 0)
+    this->node_positions.push_back(0);
+  else
+    this->node_positions.push_back(
+        this->node_positions.back() + 1 +
+        2 * (NODE_ARITIES_H[this->network.back()[0].header.kind] + 1));
+
   this->network.push_back(node);
+
   return index;
 }
 
@@ -221,13 +229,8 @@ HostINetwork::HostINetwork(std::vector<grammar::StackAction> *stack_actions,
 }
 
 size_t HostINetwork::getNetworkSize() {
-  size_t size = 0;
-
-  for (auto const &element : this->network) {
-    size += 1 + 2 * (NODE_ARITIES_H[element[0].header.kind] + 1);
-  }
-
-  return size;
+  // The position of the final node + 5 (the size of an OUTPUT node)
+  return this->node_positions.back() + 5;
 }
 
 size_t HostINetwork::getInteractions() { return this->interactions.size(); }
@@ -235,8 +238,8 @@ size_t HostINetwork::getInteractions() { return this->interactions.size(); }
 // Return the output node
 void HostINetwork::initNetwork(NodeElement *network,
                                Interaction *interactions) {
-  size_t i = 0;
-  for (auto const &element : this->network) {
+  for (size_t i = 0; i < this->network.size(); i++) {
+    NodeElement *element = this->network[i];
     size_t element_size = 1 + 2 * (NODE_ARITIES_H[element[0].header.kind] + 1);
 
     NodeElement node[element_size];
@@ -244,18 +247,19 @@ void HostINetwork::initNetwork(NodeElement *network,
 
     for (int j = 1; j < element_size; j++) {
       if (j % 2 == 1)
-        node[j].port_node = network + (uint64_t)element[j].port_node;
+        node[j].port_node =
+            network + this->node_positions[(uint64_t)element[j].port_node];
       else
         node[j] = element[j];
     }
-    cudaMemcpy(network + i, node, sizeof(NodeElement) * element_size,
-               cudaMemcpyHostToDevice);
-
-    i += element_size;
+    cudaMemcpy(network + this->node_positions[i], node,
+               sizeof(NodeElement) * element_size, cudaMemcpyHostToDevice);
   }
 
   for (size_t i = 0; i < this->interactions.size(); i++)
-    interactions[i] = this->interactions[i];
+    interactions[i] = {
+        network + this->node_positions[(uint64_t)this->interactions[i].n1],
+        network + this->node_positions[(uint64_t)this->interactions[i].n2]};
 }
 
 HostINetwork::~HostINetwork() {
