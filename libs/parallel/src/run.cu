@@ -27,8 +27,8 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
            std::string &input_string) {
   std::cout << "Parsing: " << input_string << std::endl;
 
-  dim3 grid_dims(16, 1, 1);
-  dim3 block_dims(256, 1, 1);
+  dim3 grid_dims(GRID_DIM_X, 1, 1);
+  dim3 block_dims(BLOCK_DIM_X, 1, 1);
 
   initActions();
 

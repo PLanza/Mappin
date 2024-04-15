@@ -2,7 +2,12 @@
 #include "../include/parallel/inet.hpp"
 #include "../include/parallel/kernel.cuh"
 #include "../include/parallel/queue.cuh"
+
+#include <cooperative_groups.h>
 #include <cstdint>
+#include <cstdio>
+
+namespace cg = cooperative_groups;
 
 const uint8_t NODE_ARITIES_H[NODE_KINDS] = {
     1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2, 1, 2, 1, 1, 0, 1, 1,
@@ -11,9 +16,17 @@ const uint8_t NODE_ARITIES_H[NODE_KINDS] = {
 __constant__ uint8_t NODE_ARITIES[NODE_KINDS];
 __constant__ Action actions_map[ACTIONS_MAP_SIZE];
 
-#define BLOCK_QUEUE_SIZE 4 * 256
+#define BLOCK_QUEUE_SIZE (4 * BLOCK_DIM_X)
 #define MAX_NEW_NODES 3
-#define THREAD_BUFFER_SIZE 2
+#define THREAD_BUFFER_SIZE 6
+
+__device__ int atomicAggInc(uint32_t *ctr) {
+  auto g = cg::coalesced_threads();
+  int warp_res;
+  if (g.thread_rank() == 0)
+    warp_res = atomicAdd(ctr, g.size());
+  return g.shfl(warp_res, 0) + g.thread_rank();
+}
 
 __host__ void copyConstantData() {
   cudaMemcpyToSymbol(NODE_ARITIES, NODE_ARITIES_H, sizeof(NODE_ARITIES));
@@ -274,9 +287,10 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
         switch_nodes ? interact_buf[buf_elems].n1 : interact_buf[buf_elems].n2;
 
     // Load actions
-    Action *actions = actions_map +
-                      actMapIndex(left->header.kind, right->header.kind) +
-                      MAX_ACTIONS * (left->header.value == right->header.value);
+
+    uint32_t index = actMapIndex(left->header.kind, right->header.kind);
+    index += MAX_ACTIONS * (left->header.value == right->header.value);
+    Action *actions = actions_map + index;
     uint8_t next_action = 0;
 
     NodeElement *active_pair[2] = {left, right};
@@ -327,7 +341,8 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
             globalQueue->buffer[g_q_idx] = {n1, n2};
             globalQueue->ackEnqueue(1);
           } else {
-            block_queue[atomicAdd(&tail, 1) % BLOCK_QUEUE_SIZE] = {n1, n2};
+            uint32_t bq_idx = atomicAdd(&tail, 1);
+            block_queue[bq_idx % BLOCK_QUEUE_SIZE] = {n1, n2};
           }
         }
       }
@@ -336,6 +351,8 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     }
 
     // Perform Free actions
+    // Might need to synchronize before in the case where a connection and free
+    // act on the same node
     while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
       if (actions[next_action].action.free) {
         free(left);
