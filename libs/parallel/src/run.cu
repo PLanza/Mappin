@@ -87,7 +87,11 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   checkCudaErrors(cudaFree(globalQueue_d));
   checkCudaErrors(cudaFree(network_d));
 
-  std::cout << "Done!" << std::endl;
-
-  // traverse network_h and retrieve parse
+  std::cout << "Parsing results: " << std::endl;
+  std::vector<grammar::ParseTree *> trees =
+      grammar->getParses(output_network_h, output_network_d);
+  for (grammar::ParseTree *tree : trees) {
+    grammar->printParseTree(tree);
+    std::cout << std::endl;
+  }
 }

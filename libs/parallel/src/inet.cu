@@ -115,61 +115,74 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
             InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue) {
   if (threadIdx.x == 0 && blockIdx.x == 0) {
     output[3].port_node[1 + 2 * output[4].port_port].port_node = dst_network;
-    dst_network[0] = *output;
+    memcpy(dst_network, output, 5 * sizeof(NodeElement));
 
     globalQueue->count = 1;
-    globalQueue->head = 1;
-    globalQueue->tail = 2;
+    globalQueue->head = 0;
+    globalQueue->tail = 1;
 
-    globalQueue->buffer[1] = {output[3].port_node, output[3].port_node};
+    globalQueue->buffer[0] = {output[3].port_node, output[3].port_node};
+    // Using this to keep track of where to next place a node
+    output[0].port_port = 5;
   }
+  __shared__ int64_t queue_idx;
 
   // We assume the output network is a tree structure
   while (globalQueue->count != 0) {
     __syncthreads();
-    uint32_t dequed_nodes =
-        globalQueue->count < gridDim.x ? globalQueue->count : gridDim.x;
-    // may need a done flag to synchronize across all blocks
-    if (threadIdx.x == 0 & blockIdx.x == 0) {
-      int64_t temp;
-      globalQueue->dequeue(&temp, dequed_nodes);
+    uint32_t dequed_nodes = 0;
+    if (globalQueue->count - blockIdx.x * blockDim.x >= blockDim.x) {
+      dequed_nodes = blockDim.x;
+    } else if (globalQueue->count - blockIdx.x * blockDim.x > 0) {
+      dequed_nodes = globalQueue->count - blockIdx.x * blockDim.x;
+    }
+
+    if (threadIdx.x == 0) {
+      globalQueue->dequeue(&queue_idx, dequed_nodes);
     }
     __syncthreads();
 
     // deque all
-    int64_t index =
-        globalQueue->head - dequed_nodes + threadIdx.x + blockIdx.x * gridDim.x;
     NodeElement *node;
-    if (threadIdx.x + blockIdx.x * gridDim.x < dequed_nodes) {
-      node = globalQueue->buffer[index % MAX_INTERACTIONS_SIZE].n1;
-    }
-    if (threadIdx.x + blockIdx.x * gridDim.x == 0) {
-      globalQueue->ackDequeue(globalQueue->count);
+    if (queue_idx != -1 && threadIdx.x < dequed_nodes) {
+      node = globalQueue->buffer[queue_idx + threadIdx.x].n1;
+
+      if (threadIdx.x == 0) {
+        globalQueue->ackDequeue(dequed_nodes);
+      }
     }
     __syncthreads();
 
-    if (threadIdx.x + blockIdx.x * gridDim.x < dequed_nodes) {
-      dst_network[index] = *node;
+    if (queue_idx != -1 && threadIdx.x < dequed_nodes) {
+      int64_t dst_net_idx =
+          atomicAdd((unsigned long long *)&output->port_port,
+                    1 + 2 * (NODE_ARITIES[node->header.kind] + 1));
       for (int i = 0; i < NODE_ARITIES[node->header.kind] + 1; i++) {
         // Redirect matching ports (probably not necessary)
         node[1 + 2 * i]
             .port_node[1 + 2 * node[1 + 2 * i + 1].port_port]
-            .port_node = dst_network + index;
+            .port_node = dst_network + dst_net_idx;
 
         // Enqueue children
-        globalQueue->enqueue(&index, 1);
-        globalQueue->buffer[index] = {node[1 + 2 * i].port_node,
-                                      node[1 + 2 * i].port_node};
-        globalQueue->ackEnqueue(1);
-        free(node);
+        if (i > 1) {
+          // Reusing dst_net_idx to use fewer registers
+          globalQueue->enqueue(&dst_net_idx, 1);
+          globalQueue->buffer[dst_net_idx] = {node[1 + 2 * i].port_node,
+                                              node[1 + 2 * i].port_node};
+          globalQueue->ackEnqueue(1);
+        }
       }
+      memcpy(dst_network + dst_net_idx, node,
+             (1 + 2 * (NODE_ARITIES[node->header.kind] + 1)) *
+                 sizeof(NodeElement));
+      free(node);
     }
   }
 }
 
 __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
                         size_t inters_size, bool *global_done,
-                        NodeElement *output_net, NodeElement *ouput,
+                        NodeElement *output_net, NodeElement *output,
                         NodeElement *network) {
 
   Interaction interact_buf[THREAD_BUFFER_SIZE];
@@ -239,7 +252,8 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
       // Otherwise copy data from block to global queue
       for (int i = 0; i < 3; i++) {
         globalQueue->buffer[global_queue_idx + i * blockDim.x + threadIdx.x] =
-            block_queue[head + i * blockDim.x + threadIdx.x % BLOCK_QUEUE_SIZE];
+            block_queue[(head + i * blockDim.x + threadIdx.x) %
+                        BLOCK_QUEUE_SIZE];
       }
       __syncthreads();
       if (threadIdx.x == 0) {
@@ -257,7 +271,7 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
 
       if (global_queue_idx != -1) {
         if (threadIdx.x < blockDim.x - count)
-          block_queue[tail + threadIdx.x % BLOCK_QUEUE_SIZE] =
+          block_queue[(tail + threadIdx.x) % BLOCK_QUEUE_SIZE] =
               globalQueue->buffer[global_queue_idx + threadIdx.x];
         __syncthreads();
 
@@ -269,100 +283,126 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
       }
     }
 
+    if (threadIdx.x == 0)
+      printf("\n");
+
+    bool running = true;
     if (buf_elems == 0) {
       if (ensureDequeue<BLOCK_QUEUE_SIZE>(&count)) {
         interact_buf[0] = block_queue[atomicAdd(&head, 1) % BLOCK_QUEUE_SIZE];
       } else
-        continue;
+        running = false;
     } else {
       buf_elems--;
     }
 
-    bool switch_nodes = interact_buf[buf_elems].n1->header.kind >
-                        interact_buf[buf_elems].n2->header.kind;
     // If there is enough register space, consider loading into register
-    NodeElement *left =
-        switch_nodes ? interact_buf[buf_elems].n2 : interact_buf[buf_elems].n1;
-    NodeElement *right =
-        switch_nodes ? interact_buf[buf_elems].n1 : interact_buf[buf_elems].n2;
+    NodeElement *left, *right;
 
     // Load actions
-
-    uint32_t index = actMapIndex(left->header.kind, right->header.kind);
-    index += MAX_ACTIONS * (left->header.value == right->header.value);
-    Action *actions = actions_map + index;
+    Action *actions;
     uint8_t next_action = 0;
 
-    NodeElement *active_pair[2] = {left, right};
-
+    NodeElement *active_pair[2];
     NodeElement *new_nodes[MAX_NEW_NODES];
     uint8_t next_new = 0;
 
-    // TODO: Test doing it all in a single loop
-    while (next_action < MAX_ACTIONS && actions[next_action].kind == NEW) {
-      NewNodeAction nna = actions[next_action].action.new_node;
-      uint32_t value;
-      if (nna.value == -1)
-        value = left->header.value;
-      else if (nna.value == -2)
-        value = right->header.value;
-      else if (nna.value == -3)
-        value = reinterpret_cast<std::uintptr_t>(left);
-      else
-        value = nna.value;
+    if (running) {
+      atomicAdd(&output_net[0].header.value, 1);
 
-      new_nodes[next_new] = (NodeElement *)malloc(
-          sizeof(NodeElement) * (1 + 2 * (NODE_ARITIES[nna.kind] + 1)));
-      // Should do this in one memory operation
-      new_nodes[next_new][0] = {{nna.kind, value}};
+      bool switch_nodes = interact_buf[buf_elems].n1->header.kind >
+                          interact_buf[buf_elems].n2->header.kind;
+      // If there is enough register space, consider loading into register
+      left = switch_nodes ? interact_buf[buf_elems].n2
+                          : interact_buf[buf_elems].n1;
+      right = switch_nodes ? interact_buf[buf_elems].n1
+                           : interact_buf[buf_elems].n2;
 
-      next_action++;
-      next_new++;
+      printf("%d[%u] >-< %d[%u]\n", left->header.kind, left->header.value,
+             right->header.kind, right->header.value);
+
+      // Load actions
+      uint32_t index = actMapIndex(left->header.kind, right->header.kind);
+      index += MAX_ACTIONS * (left->header.value == right->header.value);
+      actions = actions_map + index;
+
+      active_pair[0] = left;
+      active_pair[1] = right;
+
+      // TODO: Test doing it all in a single loop
+      while (next_action < MAX_ACTIONS && actions[next_action].kind == NEW) {
+        NewNodeAction nna = actions[next_action].action.new_node;
+        uint32_t value;
+        if (nna.value == -1)
+          value = left->header.value;
+        else if (nna.value == -2)
+          value = right->header.value;
+        else if (nna.value == -3)
+          value = reinterpret_cast<std::uintptr_t>(left);
+        else
+          value = nna.value;
+
+        new_nodes[next_new] = (NodeElement *)malloc(
+            sizeof(NodeElement) * (1 + 2 * (NODE_ARITIES[nna.kind] + 1)));
+        // Should do this in one memory operation
+        new_nodes[next_new][0] = {{nna.kind, value}};
+
+        next_action++;
+        next_new++;
+      }
     }
+    __syncthreads();
 
-    // Perform connect actions
-    while (next_action < MAX_ACTIONS && actions[next_action].kind == CONNECT) {
-      ConnectAction ca = actions[next_action].action.connect;
-      NodeElement *n1, *n2;
+    if (running) {
+      // Perform connect actions
+      while (next_action < MAX_ACTIONS &&
+             actions[next_action].kind == CONNECT) {
+        ConnectAction ca = actions[next_action].action.connect;
+        NodeElement *n1, *n2;
 
-      // Add any new interactions
-      if (makeConnection(ca, n1, n2, active_pair, new_nodes)) {
-        if (buf_elems < THREAD_BUFFER_SIZE) {
-          interact_buf[buf_elems] = {n1, n2};
-          buf_elems++;
-        } else {
-          // WARNING: awful code!
-          // If block queue full, enqueue onto global queue
-          if (!ensureEnqueue<BLOCK_QUEUE_SIZE>(&count)) {
-            int64_t g_q_idx = -1;
-            while (g_q_idx != -1) {
-              globalQueue->enqueue(&g_q_idx, 1);
-            }
-            globalQueue->buffer[g_q_idx] = {n1, n2};
-            globalQueue->ackEnqueue(1);
+        // Add any new interactions
+        if (makeConnection(ca, n1, n2, active_pair, new_nodes)) {
+          if (buf_elems < THREAD_BUFFER_SIZE) {
+            interact_buf[buf_elems] = {n1, n2};
+            buf_elems++;
           } else {
-            uint32_t bq_idx = atomicAdd(&tail, 1);
-            block_queue[bq_idx % BLOCK_QUEUE_SIZE] = {n1, n2};
+            // WARNING: awful code!
+            // If block queue full, enqueue onto global queue
+            if (!ensureEnqueue<BLOCK_QUEUE_SIZE>(&count)) {
+              int64_t g_q_idx = -1;
+              while (g_q_idx != -1) {
+                globalQueue->enqueue(&g_q_idx, 1);
+              }
+              globalQueue->buffer[g_q_idx] = {n1, n2};
+              globalQueue->ackEnqueue(1);
+            } else {
+              uint32_t bq_idx = atomicAdd(&tail, 1);
+              block_queue[bq_idx % BLOCK_QUEUE_SIZE] = {n1, n2};
+            }
           }
         }
-      }
 
-      next_action++;
+        next_action++;
+      }
     }
+    __syncthreads();
 
     // Perform Free actions
-    // Might need to synchronize before in the case where a connection and free
-    // act on the same node
-    while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
-      if (actions[next_action].action.free) {
-        free(left);
-      } else {
-        free(right);
-      }
+    if (running) {
+      while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
+        if (actions[next_action].action.free) {
+          if (left < network)
+            free(left);
+        } else {
+          if (right < network)
+            free(right);
+        }
 
-      next_action++;
+        next_action++;
+      }
     }
+    __syncthreads();
   }
 
-  copyNetwork(ouput, output_net, globalQueue);
+  copyNetwork(output, output_net, globalQueue);
 }

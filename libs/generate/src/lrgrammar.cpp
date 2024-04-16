@@ -283,6 +283,53 @@ ParseTree *LR0Grammar::getParse(inet::Node *product) {
   return tree;
 }
 
+#define translate(ptr) (host + (ptr - device))
+void LR0Grammar::traverseRules(NodeElement *cons,
+                               std::deque<ParseTree *> &stack,
+                               NodeElement *host, NodeElement *device) {
+  if (cons[0].header.kind == inet::CONS) {
+    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    this->traverseRules(translate(cons[5].port_node), stack, host, device);
+  } else if (cons[0].header.kind == inet::RULE) {
+    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    auto const &[head, rhs, _] = this->getRule(cons[0].header.value);
+    ParseTree *tree = new ParseTree(NON_TERM, cons[0].header.value, rhs.size());
+
+    for (size_t i = 0; i < rhs.size(); i++) {
+      tree->children[i] = stack.back();
+      stack.pop_back();
+    }
+    stack.push_back(tree);
+  } else if (cons[0].header.kind == inet::END) {
+    stack.push_back(new ParseTree(TERM, 0, 0));
+  }
+}
+
+ParseTree *LR0Grammar::getParse(NodeElement *product, NodeElement *host,
+                                NodeElement *device) {
+  // For each parse, check the stack action for incomplete parses
+  NodeElement *stack_action = translate(product[5].port_node);
+  if (translate(stack_action[3].port_node)[0].header.kind != inet::END &&
+      translate(stack_action[5].port_node)[0].header.kind != inet::END)
+    return nullptr;
+
+  // If valid then traverse the reduction rules and print parse
+  NodeElement *cons = translate(product[3].port_node);
+  std::deque<ParseTree *> stack;
+  this->traverseRules(cons, stack, host, device);
+
+  auto const &[head, rhs, _] = this->getRule(this->start_rule);
+  ParseTree *tree = new ParseTree(NON_TERM, this->start_rule, rhs.size());
+
+  for (size_t i = 0; i < rhs.size(); i++) {
+    tree->children[i] = stack.back();
+    stack.pop_back();
+  }
+  delete stack.back();
+
+  return tree;
+}
+
 void LR0Grammar::printParseTree(ParseTree *tree) {
   if (tree->kind == TERM) {
     std::cout << "_";

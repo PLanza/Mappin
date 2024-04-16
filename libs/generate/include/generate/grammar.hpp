@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <parallel/inet.hpp>
 #include <parse/inet.hpp>
 #include <util/util.hpp>
 
@@ -111,6 +112,7 @@ public:
   std::vector<Token> stringToTokens(std::string);
 
   std::vector<ParseTree *> getParses(inet::Node *);
+  std::vector<ParseTree *> getParses(NodeElement *, NodeElement *);
 
   void printGrammar();
   void printStackState(StackState, bool);
@@ -145,6 +147,7 @@ protected:
   void fillStringArrays();
   virtual ParseTable *getParseTable() = 0;
   virtual ParseTree *getParse(inet::Node *) = 0;
+  virtual ParseTree *getParse(NodeElement *, NodeElement *, NodeElement *) = 0;
 };
 
 } // namespace grammar

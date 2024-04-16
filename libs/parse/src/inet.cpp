@@ -53,6 +53,8 @@ Action::Action(Connect c1, Connect c2) : kind(CONNECT) {
 }
 Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
+size_t total_interactions = 0;
+
 void interact() {
   // std::cout << interactions.size() << " active interactions" << std::endl;
 
@@ -60,6 +62,8 @@ void interact() {
   interactions.pop_front();
   Node *left = interaction.n1;
   Node *right = interaction.n2;
+
+  total_interactions++;
 
   // std::cout << "Performing -| " << left->kind << " >-< " << right->kind
   //           << " |- interaction" << std::endl;

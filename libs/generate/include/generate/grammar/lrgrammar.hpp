@@ -49,11 +49,14 @@ public:
 protected:
   LRParseTable *getParseTable() override;
   ParseTree *getParse(inet::Node *) override;
+  ParseTree *getParse(NodeElement *, NodeElement *, NodeElement *) override;
 
 private:
   void getStackActionClosure(uint32_t);
   LRParseTable *parse_table = nullptr;
   void traverseRules(inet::Node *, std::deque<ParseTree *> &);
+  void traverseRules(NodeElement *, std::deque<ParseTree *> &, NodeElement *,
+                     NodeElement *);
 };
 } // namespace grammar
 

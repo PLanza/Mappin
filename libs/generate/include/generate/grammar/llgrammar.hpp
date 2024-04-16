@@ -35,9 +35,12 @@ public:
 protected:
   LLParseTable *getParseTable() override;
   ParseTree *getParse(inet::Node *) override;
+  ParseTree *getParse(NodeElement *, NodeElement *, NodeElement *) override;
 
 private:
   void traverseRules(inet::Node *, std::deque<ParseTree *> &);
+  void traverseRules(NodeElement *, std::deque<ParseTree *> &, NodeElement *,
+                     NodeElement *);
   std::pair<std::deque<StackState>, std::deque<uint32_t>>
       findTerminal(uint32_t, uint32_t);
   LLParseTable *parse_table = nullptr;

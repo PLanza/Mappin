@@ -48,6 +48,8 @@ int main() {
   //   g->printParseTree(tree);
   //   std::cout << std::endl;
   // }
+  //
+  // std::cout << inet::total_interactions << std::endl;
 
   return 0;
 };

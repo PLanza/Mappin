@@ -213,6 +213,20 @@ std::vector<ParseTree *> Grammar::getParses(inet::Node *output) {
   return trees;
 }
 
+std::vector<ParseTree *> Grammar::getParses(NodeElement *output,
+                                            NodeElement *device) {
+  std::vector<ParseTree *> trees;
+  // Traverse the list, each element a different parse
+  NodeElement *cons = output + (output[3].port_node - device);
+  while (cons[0].header.kind == CONS) {
+    ParseTree *tree = this->getParse(cons[3].port_node, output, device);
+    if (tree != nullptr)
+      trees.push_back(tree);
+    cons = cons[5].port_node;
+  }
+  return trees;
+}
+
 Grammar::~Grammar() {
   delete[] this->terminals;
   delete[] this->nonterminals;

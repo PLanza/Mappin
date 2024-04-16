@@ -67,6 +67,7 @@ struct Action {
   Action(bool);
 };
 
+extern size_t total_interactions;
 void interact();
 } // namespace inet
 

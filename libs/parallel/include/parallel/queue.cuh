@@ -31,13 +31,13 @@ template <uint32_t N> __device__ bool ensureDequeue(int32_t *count) {
 // The global top-level queue
 template <uint32_t N> class InteractionQueue {
   // Need to change these into queues of tickets
-  uint32_t enqueing;
-  uint32_t dequeing;
+  int32_t enqueing;
+  int32_t dequeing;
 
   __device__ bool ensureEnqueue(int32_t size) {
     int32_t num = this->count;
     while (true) {
-      if (num + size >= N)
+      if (num + size > N)
         return false;
       if (atomicAdd(&this->count, size) < N)
         return true;
@@ -48,7 +48,7 @@ template <uint32_t N> class InteractionQueue {
   __device__ bool ensureDequeue(int32_t size) {
     int32_t num = this->count;
     while (true) {
-      if (num - size <= 0)
+      if (num - size < 0)
         return false;
       if (atomicSub(&this->count, size) > 0)
         return true;
@@ -80,6 +80,10 @@ public:
   // TODO: separate into enqueue block and enqueue thread
   __device__ void enqueue(int64_t *index, size_t size) {
     if (this->ensureEnqueue(static_cast<int32_t>(size))) {
+      if (size == 0) {
+        *index = 1;
+        return;
+      }
       // If full wait until dequing operations are done
       while (this->count + this->dequeing >= N) {
       }
@@ -95,9 +99,13 @@ public:
   }
 
   __device__ void dequeue(int64_t *index, size_t size) {
+    if (size == 0) {
+      *index = 1;
+      return;
+    }
     if (this->ensureDequeue(static_cast<int32_t>(size))) {
       // If empty wait until enqueing operations are done
-      while (this->count - this->enqueing <= 0) {
+      while (this->count - this->enqueing < 0) {
       }
       *index = atomicAdd(&this->head, size) % N;
       atomicAdd(&this->dequeing, size);

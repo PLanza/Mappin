@@ -277,4 +277,50 @@ void LLGrammar::traverseRules(inet::Node *cons,
     stack.push_back(new ParseTree(TERM, 0, 0));
   }
 }
+
+#define translate(ptr) (host + (ptr - device))
+
+ParseTree *LLGrammar::getParse(NodeElement *product, NodeElement *host,
+                               NodeElement *device) {
+  // For each parse, check the stack action for incomplete parses
+  NodeElement *stack_action = translate(product[5].port_node);
+  if (translate(stack_action[3].port_node)[0].header.kind != inet::END &&
+      translate(stack_action[5].port_node)[0].header.kind != inet::END)
+    return nullptr;
+
+  // If valid then traverse the reduction rules and print parse
+  NodeElement *cons = translate(product[3].port_node);
+  std::deque<ParseTree *> stack;
+  this->traverseRules(cons, stack, host, device);
+
+  delete stack.back();
+  stack.pop_back();
+  ParseTree *tree = stack.back();
+
+  stack.pop_back();
+  delete stack.back();
+  stack.pop_back();
+
+  return tree;
+}
+
+void LLGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
+                              NodeElement *host, NodeElement *device) {
+  if (cons[0].header.kind == CONS) {
+    this->traverseRules(translate(cons[5].port_node), stack, host, device);
+    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+  } else if (cons[0].header.kind == SYM) {
+    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    auto const &[head, rhs, _] = this->getRule(cons[0].header.value);
+    ParseTree *tree = new ParseTree(NON_TERM, cons[0].header.value, rhs.size());
+
+    for (size_t i = 0; i < rhs.size(); i++) {
+      tree->children[i] = stack.back();
+      stack.pop_back();
+    }
+    stack.push_back(tree);
+  } else if (cons[0].header.kind == END) {
+    stack.push_back(new ParseTree(TERM, 0, 0));
+  }
+}
 } // namespace grammar
