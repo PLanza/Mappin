@@ -75,7 +75,7 @@ public:
     memcpy(this->buffer, interactions, size * sizeof(Interaction));
   }
 
-  __device__ inline bool isEmpty() { return !(head == tail); }
+  __device__ inline bool isEmpty() { return this->head == this->tail; }
 
   // TODO: separate into enqueue block and enqueue thread
   __device__ void enqueue(int64_t *index, size_t size) {

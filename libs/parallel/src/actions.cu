@@ -296,13 +296,13 @@ void initActions() {
               createAction(false)});
 
   addActions(COMP, SYM,
-             {createAction(COMP_SYM, -1),
+             {createAction(COMP_SYM, -2),
               createAction(VARS, 1, 0, NEW_NODES, 0, 1),
               createAction(VARS, 0, 0, NEW_NODES, 0, 0),
               createAction(VARS, 0, 1, NEW_NODES, 0, 2), createAction(true),
               createAction(false)});
   addActions(COMP, ANY,
-             {createAction(COMP_ANY, -1),
+             {createAction(COMP_ANY, 0),
               createAction(VARS, 1, 0, NEW_NODES, 0, 1),
               createAction(VARS, 0, 0, NEW_NODES, 0, 0),
               createAction(VARS, 0, 1, NEW_NODES, 0, 2), createAction(true),

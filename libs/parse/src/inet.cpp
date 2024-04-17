@@ -1,6 +1,5 @@
 #include <cstddef>
 #include <cstdlib>
-// #include <iostream>
 #include <iostream>
 #include <vector>
 
@@ -60,13 +59,16 @@ void interact() {
 
   Interaction interaction = interactions.front();
   interactions.pop_front();
-  Node *left = interaction.n1;
-  Node *right = interaction.n2;
+  Node *left = interaction.n1->kind < interaction.n2->kind ? interaction.n1
+                                                           : interaction.n2;
+  Node *right = interaction.n1->kind < interaction.n2->kind ? interaction.n2
+                                                            : interaction.n1;
 
   total_interactions++;
 
-  // std::cout << "Performing -| " << left->kind << " >-< " << right->kind
-  //           << " |- interaction" << std::endl;
+  std::cout << left->kind << "[" << left->value << "]"
+            << " >-< " << right->kind << "[" << right->value << "]"
+            << std::endl;
 
   std::vector<Action> &actions =
       getActions(left->kind, right->kind, left->value == right->value);

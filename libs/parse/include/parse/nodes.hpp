@@ -28,12 +28,12 @@ enum NodeKind {
   COMP,
   COMP_SYM,
   COMP_END,
+  COMP_ANY,
   BAR,
   BAR_AUX,
   END,
   SYM,
   ANY,
-  COMP_ANY,
   RULE, // Could use SYM for RULE
 };
 
