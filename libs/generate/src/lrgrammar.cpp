@@ -290,7 +290,7 @@ void LR0Grammar::traverseRules(NodeElement *cons,
   if (cons[0].header.kind == inet::CONS) {
     this->traverseRules(translate(cons[3].port_node), stack, host, device);
     this->traverseRules(translate(cons[5].port_node), stack, host, device);
-  } else if (cons[0].header.kind == inet::RULE) {
+  } else if (cons[0].header.kind == inet::SYM) {
     this->traverseRules(translate(cons[3].port_node), stack, host, device);
     auto const &[head, rhs, _] = this->getRule(cons[0].header.value);
     ParseTree *tree = new ParseTree(NON_TERM, cons[0].header.value, rhs.size());

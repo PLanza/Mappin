@@ -85,11 +85,11 @@ void addDeleteActions() {
       actions.push_back(Action(DELETE, 0));
 
     if (node_arities[kind] > 0) {
-      actions.push_back(Action({ACTIVE_PAIR, 0, 0}, {VARS, 1, 0}));
+      actions.push_back(Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}));
     }
 
     for (size_t i = 1; i < node_arities[kind]; i++)
-      actions.push_back(Action({NEW_NODES, i - 1, 0}, {VARS, 1, i}));
+      actions.push_back(Action({VARS, 1, i}, {NEW_NODES, i - 1, 0}));
 
     actions.push_back(Action(false));
     if (node_arities[kind] == 0)
@@ -135,14 +135,14 @@ void addDeltaActions() {
       continue;
     }
 
+    actions.push_back(Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}));
     for (size_t i = 1; i < node_arities[kind]; i++)
-      actions.push_back(Action({NEW_NODES, i, 0}, {VARS, 1, i}));
-    actions.push_back(Action({ACTIVE_PAIR, 0, 0}, {VARS, 1, 0}));
+      actions.push_back(Action({VARS, 1, i}, {NEW_NODES, i, 0}));
 
     actions.push_back(Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}));
     actions.push_back(Action({ACTIVE_PAIR, 0, 2}, {NEW_NODES, 0, 1}));
     for (size_t i = 1; i < node_arities[kind]; i++)
-      actions.push_back(Action({NEW_NODES, i, 1}, {ACTIVE_PAIR, 1, i + 1}));
+      actions.push_back(Action({ACTIVE_PAIR, 1, i + 1}, {NEW_NODES, i, 1}));
 
     for (size_t i = 1; i < node_arities[kind]; i++)
       actions.push_back(Action({NEW_NODES, i, 2}, {NEW_NODES, 0, i + 1}));

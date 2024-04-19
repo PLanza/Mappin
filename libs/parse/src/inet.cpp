@@ -35,6 +35,17 @@ void connect(Node *n1, std::size_t p1, Node *n2, std::size_t p2) {
     interactions.push_back({n1, n2}); // Add to interaction queue
 }
 
+Interaction connect2(Node *n1, std::size_t p1, Node *n2, std::size_t p2) {
+  n1->ports[p1] = {n2, p2};
+  n2->ports[p2] = {n1, p1};
+
+  // Check for interaction
+  if (p1 == 0 && p2 == 0)
+    return {n1, n2}; // Add to interaction queue
+  else
+    return {nullptr, nullptr};
+}
+
 void freeNode(Node *n) {
   delete[] n->ports;
 
@@ -53,110 +64,152 @@ Action::Action(Connect c1, Connect c2) : kind(CONNECT) {
 Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
 size_t total_interactions = 0;
-
+#define BLOCK_SIZE 2
 void interact() {
   // std::cout << interactions.size() << " active interactions" << std::endl;
 
-  Interaction interaction = interactions.front();
-  interactions.pop_front();
-  Node *left = interaction.n1->kind < interaction.n2->kind ? interaction.n1
-                                                           : interaction.n2;
-  Node *right = interaction.n1->kind < interaction.n2->kind ? interaction.n2
-                                                            : interaction.n1;
+  Interaction inters[BLOCK_SIZE];
+  Interaction to_add[12 * BLOCK_SIZE];
+  Port connections[12 * BLOCK_SIZE][2];
 
-  total_interactions++;
-
-  std::cout << left->kind << "[" << left->value << "]"
-            << " >-< " << right->kind << "[" << right->value << "]"
-            << std::endl;
-
-  std::vector<Action> &actions =
-      getActions(left->kind, right->kind, left->value == right->value);
-
-  if (actions.empty()) {
-    std::cout << "Reached unimplemented interaction" << left->kind << " >< "
-              << right->kind << std::endl;
-    return;
+  for (int i = 0; i < 12 * BLOCK_SIZE; i++) {
+    to_add[i] = {nullptr, nullptr};
+    connections[i][0] = {nullptr, 0};
+    connections[i][1] = {nullptr, 0};
   }
 
-  size_t next_action = 0;
+  bool both = true;
+  for (int i = 0; i < BLOCK_SIZE; i++) {
+    if (i >= interactions.size()) {
+      both = false;
+      break;
+    } else
+      both = true;
+    inters[i] = interactions.front();
+    interactions.pop_front();
+  }
 
-  Node *active_pair[] = {left, right};
+  for (int i = 0; i < BLOCK_SIZE; i++) {
+    if (i == 1 && !both)
+      continue;
 
-  Node *new_nodes[MAX_NEW_NODES];
-  size_t next_new = 0;
+    Node *left =
+        inters[i].n1->kind < inters[i].n2->kind ? inters[i].n1 : inters[i].n2;
+    Node *right =
+        inters[i].n1->kind < inters[i].n2->kind ? inters[i].n2 : inters[i].n1;
 
-  // Make new nodes
-  while (next_action < actions.size() && actions[next_action].kind == NEW) {
-    NewNodeAction nna = actions[next_action].action.new_node;
+    total_interactions++;
 
-    if (nna.value == -1)
-      new_nodes[next_new] = newNode(nna.kind, left->value);
-    else if (nna.value == -2)
-      new_nodes[next_new] = newNode(nna.kind, right->value);
-    else if (nna.value == -3)
-      new_nodes[next_new] =
-          newNode(nna.kind, reinterpret_cast<std::uintptr_t>(left));
+    std::cout << left->kind << "[" << left->value << "]"
+              << " >-< " << right->kind << "[" << right->value << "]"
+              << std::endl;
+
+    std::vector<Action> &actions =
+        getActions(left->kind, right->kind, left->value == right->value);
+
+    if (actions.empty()) {
+      std::cout << "Reached unimplemented interaction" << left->kind << " >< "
+                << right->kind << std::endl;
+      return;
+    }
+
+    size_t next_action = 0;
+
+    Node *active_pair[] = {left, right};
+
+    Node *new_nodes[MAX_NEW_NODES];
+    size_t next_new = 0;
+
+    // Make new nodes
+    while (next_action < actions.size() && actions[next_action].kind == NEW) {
+      NewNodeAction nna = actions[next_action].action.new_node;
+
+      if (nna.value == -1)
+        new_nodes[next_new] = newNode(nna.kind, left->value);
+      else if (nna.value == -2)
+        new_nodes[next_new] = newNode(nna.kind, right->value);
+      else if (nna.value == -3)
+        new_nodes[next_new] =
+            newNode(nna.kind, reinterpret_cast<std::uintptr_t>(left));
+      else
+        new_nodes[next_new] = newNode(nna.kind, nna.value);
+
+      next_action++;
+      next_new++;
+    }
+
+    uint32_t connects = 0;
+    // Make connections
+    while (next_action < actions.size() &&
+           actions[next_action].kind == CONNECT) {
+      Connect c1 = actions[next_action].action.connect.c1;
+      Connect c2 = actions[next_action].action.connect.c2;
+
+      Node *n1, *n2;
+      std::size_t p1 = c1.port, p2 = c2.port;
+
+      switch (c1.group) {
+      case ACTIVE_PAIR: {
+        n1 = active_pair[c1.node];
+        break;
+      }
+      case VARS: {
+        n1 = active_pair[c1.node]->ports[c1.port + 1].node;
+        p1 = active_pair[c1.node]->ports[c1.port + 1].port;
+        break;
+      }
+      case NEW_NODES: {
+        n1 = new_nodes[c1.node];
+        break;
+      }
+      }
+
+      switch (c2.group) {
+      case ACTIVE_PAIR: {
+        n2 = active_pair[c2.node];
+        break;
+      }
+      case VARS: {
+        n2 = active_pair[c2.node]->ports[c2.port + 1].node;
+        p2 = active_pair[c2.node]->ports[c2.port + 1].port;
+        break;
+      }
+      case NEW_NODES: {
+        n2 = new_nodes[c2.node];
+        break;
+      }
+      }
+
+      to_add[connects * 2 + i] = connect2(n1, p1, n2, p2);
+      connections[connects * 2 + i][0] = {n1, p1};
+      connections[connects * 2 + i][1] = {n2, p2};
+
+      next_action++;
+      connects++;
+    }
+
+    // Free nodes
+    while (next_action < actions.size() && actions[next_action].kind == FREE) {
+      if (actions[next_action].action.free)
+        freeNode(left);
+      else
+        freeNode(right);
+
+      next_action++;
+    }
+  }
+  for (int i = 0; i < 12 * BLOCK_SIZE; i++) {
+    if (connections[i][0].node == nullptr)
+      continue;
+    else {
+      std::cout << connections[i][0].node->kind << "[" << connections[i][0].port
+                << "] --- " << connections[i][1].node->kind << "["
+                << connections[i][1].port << "]" << std::endl;
+    }
+    if (to_add[i].n1 == nullptr)
+      continue;
     else
-      new_nodes[next_new] = newNode(nna.kind, nna.value);
-
-    next_action++;
-    next_new++;
-  }
-
-  // Make connections
-  while (next_action < actions.size() && actions[next_action].kind == CONNECT) {
-    Connect c1 = actions[next_action].action.connect.c1;
-    Connect c2 = actions[next_action].action.connect.c2;
-
-    Node *n1, *n2;
-    std::size_t p1 = c1.port, p2 = c2.port;
-
-    switch (c1.group) {
-    case ACTIVE_PAIR: {
-      n1 = active_pair[c1.node];
-      break;
-    }
-    case VARS: {
-      n1 = active_pair[c1.node]->ports[c1.port + 1].node;
-      p1 = active_pair[c1.node]->ports[c1.port + 1].port;
-      break;
-    }
-    case NEW_NODES: {
-      n1 = new_nodes[c1.node];
-      break;
-    }
-    }
-
-    switch (c2.group) {
-    case ACTIVE_PAIR: {
-      n2 = active_pair[c2.node];
-      break;
-    }
-    case VARS: {
-      n2 = active_pair[c2.node]->ports[c2.port + 1].node;
-      p2 = active_pair[c2.node]->ports[c2.port + 1].port;
-      break;
-    }
-    case NEW_NODES: {
-      n2 = new_nodes[c2.node];
-      break;
-    }
-    }
-
-    connect(n1, p1, n2, p2);
-
-    next_action++;
-  }
-
-  // Free nodes
-  while (next_action < actions.size() && actions[next_action].kind == FREE) {
-    if (actions[next_action].action.free)
-      freeNode(left);
-    else
-      freeNode(right);
-
-    next_action++;
+      interactions.push_back(to_add[i]);
   }
 }
 

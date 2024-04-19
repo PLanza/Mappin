@@ -27,7 +27,7 @@ Node *getStackActionNetwork(grammar::StackAction &action) {
   // Create reduction rule chains
   Node *prev_rule = product;
   for (uint32_t rule : action.reduce_rules) {
-    Node *temp = newNode(RULE, rule);
+    Node *temp = newNode(SYM, rule);
     connect(prev_rule, 1, temp, 0);
     prev_rule = temp;
   }
@@ -193,6 +193,5 @@ Node *createParserNetwork(std::vector<grammar::StackAction> *stack_actions,
 
   return out;
 }
-
 
 } // namespace inet

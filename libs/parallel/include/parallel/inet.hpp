@@ -44,7 +44,8 @@ struct NodeElement {
   union {
     struct {
       uint8_t kind;
-      uint32_t value;
+      uint16_t value;
+      uint32_t lock;
     } header;
     NodeElement *port_node;
     uint64_t port_port;

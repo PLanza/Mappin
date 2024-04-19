@@ -12,7 +12,7 @@ private:
   std::vector<size_t> node_positions;
   std::vector<Interaction> interactions;
 
-  uint64_t createNode(node_kind, uint32_t);
+  uint64_t createNode(node_kind, uint16_t);
   void connect(uint64_t, uint64_t, uint64_t, uint64_t);
   node_kind getNodeKind(uint64_t);
 

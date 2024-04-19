@@ -263,7 +263,7 @@ void LLGrammar::traverseRules(inet::Node *cons,
   if (cons->kind == inet::CONS) {
     this->traverseRules(cons->ports[2].node, stack);
     this->traverseRules(cons->ports[1].node, stack);
-  } else if (cons->kind == inet::RULE) {
+  } else if (cons->kind == inet::SYM) {
     this->traverseRules(cons->ports[1].node, stack);
     auto const &[head, rhs, _] = this->getRule(cons->value);
     ParseTree *tree = new ParseTree(NON_TERM, cons->value, rhs.size());
