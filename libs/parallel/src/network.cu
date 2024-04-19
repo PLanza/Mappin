@@ -10,11 +10,11 @@ void HostINetwork::connect(uint64_t n1, uint64_t p1, uint64_t n2, uint64_t p2) {
     this->interactions.push_back({(NodeElement *)n1, (NodeElement *)n2});
 }
 
-uint64_t HostINetwork::createNode(node_kind kind, uint32_t value) {
+uint64_t HostINetwork::createNode(node_kind kind, uint16_t value) {
   uint64_t index = this->network.size();
 
   NodeElement *node = new NodeElement[1 + 2 * (NODE_ARITIES_H[kind] + 1)];
-  node[0] = {{kind, value}};
+  node[0] = {{kind, value, 0}};
 
   if (this->node_positions.size() == 0)
     this->node_positions.push_back(0);
