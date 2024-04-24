@@ -232,4 +232,4 @@ std::vector<grammar::Token> GrammarParser<G>::parseGrammarRHS() {
 }
 
 template class GrammarParser<grammar::LLGrammar>;
-template class GrammarParser<grammar::LR0Grammar>;
+template class GrammarParser<grammar::LRGrammar>;

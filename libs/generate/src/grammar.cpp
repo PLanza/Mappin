@@ -103,23 +103,33 @@ std::vector<Token> Grammar::stringToTokens(std::string input) {
   return tokens;
 }
 
-void Grammar::printGrammar() {
-  for (uint32_t i = 0; i < this->rules.size(); i++) {
-    const auto &[head, rhs, _] = this->rules[i];
+void Grammar::printRule(uint32_t rule_idx, bool full) {
+  const auto &[head, rhs, _] = this->rules[rule_idx];
 
-    if (i == this->start_rule)
-      std::cout << "$ ";
+  if (rule_idx == this->start_rule && full)
+    std::cout << "$ ";
 
-    std::cout << this->nonterminals[head.id] << " := ";
+  std::cout << this->nonterminals[head.id] << " := ";
 
-    for (auto &token : rhs) {
+  for (auto &token : rhs) {
+    if (full) {
       std::cout << "(" << token.id << ": ";
       if (token.kind == TERM)
         std::cout << this->terminals[token.id];
       else
         std::cout << this->nonterminals[token.id];
       std::cout << ") ";
+    } else {
+      if (token.kind == TERM)
+        std::cout << this->terminals[token.id] << " ";
+      else
+        std::cout << this->nonterminals[token.id] << " ";
     }
+  }
+}
+void Grammar::printGrammar() {
+  for (uint32_t i = 0; i < this->rules.size(); i++) {
+    this->printRule(i, true);
     std::cout << "\n";
   }
   std::cout << std::endl;
