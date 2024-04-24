@@ -145,9 +145,13 @@ protected:
   Token newTerminal(std::string);
   Token newNonTerminal(std::string);
   void fillStringArrays();
+
   virtual ParseTable *getParseTable() = 0;
   virtual ParseTree *getParse(inet::Node *) = 0;
   virtual ParseTree *getParse(NodeElement *, NodeElement *, NodeElement *) = 0;
+
+  void printRule(uint32_t, bool);
+  friend class LRParseTable;
 };
 
 } // namespace grammar
