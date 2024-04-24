@@ -1,21 +1,20 @@
 #include "grammar/lrgrammar.hpp"
 #include "grammar.hpp"
 #include "parse/nodes.hpp"
+#include <algorithm>
 #include <boost/container_hash/extensions.hpp>
 #include <cstddef>
-#include <cstring>
 #include <deque>
 #include <iostream>
 #include <tuple>
-#include <unordered_map>
-#include <utility>
+#include <unordered_set>
 
 namespace boost {
-template <> struct hash<grammar::Config> {
-  size_t operator()(const grammar::Config &i) const {
+template <> struct hash<grammar::Item> {
+  size_t operator()(const grammar::Item &i) const {
     size_t hash = 0;
     boost::hash_combine(hash, i.rule_idx);
-    boost::hash_combine(hash, i.bullet);
+    boost::hash_combine(hash, i.bullet_pos);
     return hash;
   }
 };
@@ -23,14 +22,14 @@ template <> struct hash<grammar::Config> {
 
 namespace grammar {
 
-LRGrammar::LRGrammar(const char *file_name) : Grammar(file_name) {}
+LR0Grammar::LR0Grammar(const char *file_name) : Grammar(file_name) {}
 
-LRGrammar::~LRGrammar() {
+LR0Grammar::~LR0Grammar() {
   delete this->parse_table;
   delete[] this->stack_actions;
 }
 
-void LRGrammar::finalize() {
+void LR0Grammar::finalize() {
   // Add S' -> S$ rule
   Token start_token = std::get<0>(rules[this->start_rule]);
 
@@ -49,11 +48,15 @@ void LRGrammar::finalize() {
   this->fillStringArrays();
 }
 
-void LRGrammar::makeParseTable() { this->parse_table = new LRParseTable(this); }
+void LR0Grammar::makeParseTable() {
+  this->parse_table =
+      new LRParseTable(this->terms_size, this->nonterms_size, this->rules,
+                       this->start_rule, this->file_name);
+}
 
-LRParseTable *LRGrammar::getParseTable() { return this->parse_table; }
+LRParseTable *LR0Grammar::getParseTable() { return this->parse_table; }
 
-void LRGrammar::printParseTable() {
+void LR0Grammar::printParseTable() {
   if (this->parse_table == nullptr) {
     std::cerr << "ERROR: Attempted to print parse table before it "
                  "was made."
@@ -90,7 +93,7 @@ void LRGrammar::printParseTable() {
     std::cout << "-";
   std::cout << std::endl;
 
-  for (uint32_t state = 0; state < this->parse_table->state_count; state++) {
+  for (uint32_t state = 0; state < this->parse_table->states; state++) {
     printf("%5d | ", state);
     for (uint32_t t_id = 1; t_id < this->terms_size; t_id++) {
       ParseAction action = this->parse_table->getAction(state, t_id);
@@ -126,7 +129,7 @@ void LRGrammar::printParseTable() {
   std::cout << std::endl;
 }
 
-void LRGrammar::printStackActions() { Grammar::printStackActions(false); }
+void LR0Grammar::printStackActions() { Grammar::printStackActions(false); }
 
 bool mergeStackActions(StackAction &left_action, StackAction right_action) {
   // A-/ should not be able to merge with anything
@@ -164,7 +167,7 @@ bool mergeStackActions(StackAction &left_action, StackAction right_action) {
   return true;
 }
 
-void LRGrammar::getStackActionClosure(uint32_t term) {
+void LR0Grammar::getStackActionClosure(uint32_t term) {
   std::vector<StackAction> curr_actions;
   while (this->stack_actions[term] != curr_actions) {
     curr_actions = this->stack_actions[term];
@@ -177,7 +180,7 @@ void LRGrammar::getStackActionClosure(uint32_t term) {
   }
 }
 
-void LRGrammar::generateStackActions() {
+void LR0Grammar::generateStackActions() {
   if (this->parse_table == nullptr) {
     std::cerr
         << "ERROR: Attempted to generate stack actions before the parse table"
@@ -186,12 +189,11 @@ void LRGrammar::generateStackActions() {
   }
   std::cout << "Generating stack actions for LR(0) Grammar" << std::endl;
 
-  this->stack_actions =
-      new std::vector<StackAction>[this->parse_table->state_count];
+  this->stack_actions = new std::vector<StackAction>[this->parse_table->states];
   this->stack_actions[0] = {StackAction{{}, {{SOME, 0}}, {}}};
 
   for (uint32_t term = 1; term < this->terms_size; term++) {
-    for (uint32_t state = 0; state < this->parse_table->state_count; state++) {
+    for (uint32_t state = 0; state < this->parse_table->states; state++) {
       ParseAction action = this->parse_table->getAction(state, term);
       switch (action.kind) {
       case SHIFT: {
@@ -207,8 +209,7 @@ void LRGrammar::generateStackActions() {
         for (int i = 1; i < rule_rhs.size(); i++)
           lhs_prefix.push_back(ANY_STATE);
 
-        for (uint32_t state = 0; state < this->parse_table->state_count;
-             state++) {
+        for (uint32_t state = 0; state < this->parse_table->states; state++) {
           std::deque<StackState> lhs = lhs_prefix;
           int goto_state = this->parse_table->getGoto(state, rule_lhs.id);
           if (goto_state < 0)
@@ -238,8 +239,8 @@ void LRGrammar::generateStackActions() {
   }
 }
 
-void LRGrammar::traverseRules(inet::Node *cons,
-                              std::deque<ParseTree *> &stack) {
+void LR0Grammar::traverseRules(inet::Node *cons,
+                               std::deque<ParseTree *> &stack) {
   if (cons->kind == inet::CONS) {
     this->traverseRules(cons->ports[1].node, stack);
     this->traverseRules(cons->ports[2].node, stack);
@@ -258,7 +259,7 @@ void LRGrammar::traverseRules(inet::Node *cons,
   }
 }
 
-ParseTree *LRGrammar::getParse(inet::Node *product) {
+ParseTree *LR0Grammar::getParse(inet::Node *product) {
   // For each parse, check the stack action for incomplete parses
   inet::Node *stack_action = product->ports[2].node;
   if (stack_action->ports[1].node->kind != inet::END &&
@@ -283,8 +284,9 @@ ParseTree *LRGrammar::getParse(inet::Node *product) {
 }
 
 #define translate(ptr) (host + (ptr - device))
-void LRGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
-                              NodeElement *host, NodeElement *device) {
+void LR0Grammar::traverseRules(NodeElement *cons,
+                               std::deque<ParseTree *> &stack,
+                               NodeElement *host, NodeElement *device) {
   if (cons[0].header.kind == inet::CONS) {
     this->traverseRules(translate(cons[3].port_node), stack, host, device);
     this->traverseRules(translate(cons[5].port_node), stack, host, device);
@@ -303,8 +305,8 @@ void LRGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
   }
 }
 
-ParseTree *LRGrammar::getParse(NodeElement *product, NodeElement *host,
-                               NodeElement *device) {
+ParseTree *LR0Grammar::getParse(NodeElement *product, NodeElement *host,
+                                NodeElement *device) {
   // For each parse, check the stack action for incomplete parses
   NodeElement *stack_action = translate(product[5].port_node);
   if (translate(stack_action[3].port_node)[0].header.kind != inet::END &&
@@ -328,7 +330,7 @@ ParseTree *LRGrammar::getParse(NodeElement *product, NodeElement *host,
   return tree;
 }
 
-void LRGrammar::printParseTree(ParseTree *tree) {
+void LR0Grammar::printParseTree(ParseTree *tree) {
   if (tree->kind == TERM) {
     std::cout << "_";
   } else {
@@ -342,476 +344,153 @@ void LRGrammar::printParseTree(ParseTree *tree) {
   }
 }
 
-typedef std::unordered_set<Config, boost::hash<Config>> unfinished_lrstate;
-
-LRState getStateClosure(grammar_rules const &rules,
-                        unfinished_lrstate &unfinished) {
-  uint32_t prev_size = 0;
-  while (unfinished.size() != prev_size) {
-    prev_size = unfinished.size();
+void getSetClosure(grammar_rules const &rules,
+                   std::unordered_set<Item, boost::hash<Item>> &set) {
+  std::unordered_set<Item, boost::hash<Item>> prev_set;
+  while (set.size() != prev_set.size()) {
+    prev_set = set;
 
     for (size_t i = 0; i < rules.size(); i++) {
-      for (Config const &config : unfinished) {
-        std::vector<Token> const &rhs = std::get<1>(rules[config.rule_idx]);
-        if (config.bullet >= rhs.size())
+      for (Item const &item : prev_set) {
+        std::vector<Token> const &rhs = std::get<1>(rules[item.rule_idx]);
+        if (item.bullet_pos >= rhs.size())
           continue;
 
-        if (rhs[config.bullet].kind == NON_TERM) {
-          uint32_t nonterm_id = rhs[config.bullet].id;
+        if (rhs[item.bullet_pos].kind == NON_TERM) {
+          uint32_t nonterm_id = rhs[item.bullet_pos].id;
           if (std::get<0>(rules[i]).id == nonterm_id)
-            unfinished.insert({i, 0});
+            set.insert({i, 0});
         }
       }
     }
   }
-
-  LRState state;
-  for (Config c : unfinished)
-    state.push_back(c);
-  return state;
 }
 
-void LRParseTable::generateStates() {
-  std::size_t curr_state = 0;
-  std::size_t prev_size = this->states.size();
+LRParseTable::LRParseTable(uint32_t terminals, uint32_t nonterminals,
+                           grammar_rules const &rules, uint32_t start_rule,
+                           const char *file_name)
+    : terms(terminals), nonterms(nonterminals) {
+  std::cout << "Making LR(0) Grammar parse table" << std::endl;
 
-  while (curr_state < this->states.size()) {
-    // Maps transition tokens to the new state generated
-    std::unordered_map<Token, unfinished_lrstate, boost::hash<Token>>
-        new_states;
-    std::vector<size_t> new_reductions;
-    // Create sets that curr_state transitions into
-    for (Config const &config : this->states[curr_state]) {
-      std::vector<Token> const &rhs =
-          std::get<1>(this->grammar->rules[config.rule_idx]);
+  // The set of items that correspond to the parser's states: state -> {item}
+  std::unordered_set<Item, boost::hash<Item>> start_set = {{start_rule, 0}};
+  getSetClosure(rules, start_set);
+  std::vector<std::unordered_set<Item, boost::hash<Item>>> item_sets = {
+      start_set};
+
+  // (state × token) -> state
+  std::vector<int *> trans_table;
+  std::vector<int> end_states;
+  std::vector<std::tuple<size_t, ParseAction>> reduce_states;
+
+  std::size_t curr_state = 0;
+  std::size_t prev_size = item_sets.size();
+
+  while (curr_state < item_sets.size()) {
+    std::unordered_map<Token, std::unordered_set<Item, boost::hash<Item>>,
+                       boost::hash<Token>>
+        new_sets;
+    for (Item const &item : item_sets[curr_state]) {
+      std::vector<Token> const &rhs = std::get<1>(rules[item.rule_idx]);
 
       // A -> α ... β •
-      if (config.bullet >= rhs.size()) {
-        new_reductions.push_back(config.rule_idx);
+      if (item.bullet_pos >= rhs.size()) {
+        reduce_states.push_back(
+            {curr_state,
+             ParseAction{REDUCE, static_cast<uint32_t>(item.rule_idx)}});
         continue;
       }
       // A -> α ... β • eoi
-      if (rhs[config.bullet] == Token{TERM, 1}) {
-        this->end_states.push_back(curr_state);
+      if (rhs[item.bullet_pos] == Token{TERM, 1}) {
+        end_states.push_back(curr_state);
         continue;
       }
 
       size_t set_idx;
-      // A -> α ... • β  ...
-      if (new_states.find(rhs[config.bullet]) != new_states.end())
-        new_states[rhs[config.bullet]].insert(
-            Config(config.rule_idx, config.bullet + 1));
+      if (new_sets.find(rhs[item.bullet_pos]) != new_sets.end())
+        new_sets[rhs[item.bullet_pos]].insert(
+            {item.rule_idx, item.bullet_pos + 1});
       else {
-        new_states[rhs[config.bullet]] = {
-            Config(config.rule_idx, config.bullet + 1)};
+        new_sets[rhs[item.bullet_pos]] = {{item.rule_idx, item.bullet_pos + 1}};
       }
     }
 
-    this->reductions.push_back(new_reductions);
+    trans_table.push_back(new int[terminals + nonterminals]);
+    for (int i = 0; i < terminals + nonterminals; i++)
+      trans_table.back()[i] = -1;
 
-    uint32_t terms = this->grammar->terms_size;
-    uint32_t nonterms = this->grammar->nonterms_size;
-    this->trans_table.push_back(new int[terms + nonterms]);
-    for (int i = 0; i < terms + nonterms; i++)
-      this->trans_table.back()[i] = -1;
-
-    // Get the closure of each new state
-    for (auto &[token, state] : new_states) {
-      LRState finished_state = getStateClosure(this->grammar->rules, state);
+    for (auto &[token, set] : new_sets) {
+      getSetClosure(rules, set);
 
       int repeat = -1;
-      // Check if this new state is the same to any previous ones
-      for (size_t other = 0; other < prev_size; other++) {
-        if (finished_state == this->states[other])
-          repeat = other;
+      for (size_t state = 0; state < prev_size; state++) {
+        if (set == item_sets[state])
+          repeat = state;
       }
 
-      size_t table_idx = token.id + (token.kind == TERM ? 0 : terms);
+      size_t table_idx = token.id + (token.kind == TERM ? 0 : terminals);
       if (repeat == -1) {
-        // If the new state is original then transition to it and add it to the
-        // set of states
-        this->trans_table.back()[table_idx] = this->states.size();
-        this->states.push_back(finished_state);
+        trans_table.back()[table_idx] = item_sets.size();
+        item_sets.push_back(set);
       } else
-        // If new state has already been seen then transition into the original
-        this->trans_table.back()[table_idx] = repeat;
+        trans_table.back()[table_idx] = repeat;
     }
 
     curr_state++;
-    prev_size = this->states.size();
+    prev_size = item_sets.size();
   }
 
-  assert(this->trans_table.size() == this->states.size());
-  this->state_count = this->states.size();
-}
+  assert(trans_table.size() == item_sets.size());
+  this->states = item_sets.size();
 
-void LRParseTable::printConfig(Config const &config) {
-  const auto &[head, rhs, _] = this->grammar->rules[config.rule_idx];
-
-  std::cout << this->grammar->nonterminals[head.id] << " := ";
-  for (uint32_t i = 0; i < rhs.size(); i++) {
-    if (i == config.bullet)
-      std::cout << "• ";
-
-    Token token = rhs[i];
-    if (token.kind == TERM)
-      std::cout << this->grammar->terminals[token.id] << " ";
-    else
-      std::cout << this->grammar->nonterminals[token.id] << " ";
-  }
-  if (config.bullet == rhs.size())
-    std::cout << "•";
-}
-
-void LRParseTable::printStates() {
-  for (LRState const &state : states) {
-    std::cout << "\n ---------- \n" << std::endl;
-    for (Config const &config : state) {
-      this->printConfig(config);
-      std::cout << std::endl;
-    }
-  }
-}
-
-std::unordered_set<Token, boost::hash<Token>>
-LRParseTable::getTokenHeads(uint32_t non_term) {
-  if (this->token_heads.find(non_term) != this->token_heads.end())
-    return this->token_heads[non_term];
-
-  std::unordered_set<Token, boost::hash<Token>> theads;
-  std::vector<uint32_t> head_stack = {non_term};
-
-  while (!head_stack.empty()) {
-    uint32_t curr_head = head_stack.back();
-    head_stack.pop_back();
-
-    for (auto const &[head, rhs, _] : this->grammar->rules) {
-      if (head.id == curr_head) {
-        if (rhs[0].kind == TERM)
-          theads.insert(rhs[0]);
-        else {
-          bool in_stack = false;
-          for (uint32_t const &stack_h : head_stack) {
-            if (stack_h == rhs[0].id)
-              in_stack = true;
-          }
-          if (!in_stack)
-            head_stack.push_back(rhs[0].id);
-        }
-      }
+  this->goto_table = new int[this->states * this->nonterms];
+  this->action_table = new ParseAction[this->states * this->terms];
+  for (int i = 0; i < this->states; i++) {
+    for (int j = 0; j < this->terms; j++) {
+      this->action_table[i * this->terms + j] = ParseAction{EMPTY, 0};
     }
   }
 
-  this->token_heads[non_term] = theads;
-  return this->token_heads[non_term];
-}
-
-std::vector<LTStackToken> LRParseTable::getOriginators(size_t state_idx,
-                                                       Config config) {
-  std::vector<LTStackToken> originators;
-  LRState &state = this->states[state_idx];
-
-  // A -> • α ... => B -> ... • A ...
-  if (config.bullet == 0) {
-    Token head = std::get<0>(this->grammar->rules[config.rule_idx]);
-    for (uint32_t c = 0; c < state.size(); c++) {
-      std::vector<Token> rhs =
-          std::get<1>(this->grammar->rules[state[c].rule_idx]);
-      if (rhs[state[c].bullet] == head)
-        originators.push_back({state_idx, c, false, false});
+  for (size_t state = 0; state < trans_table.size(); state++) {
+    // Add the Shift actions
+    for (size_t term = 0; term < terminals; term++) {
+      if (trans_table[state][term] != -1)
+        this->action_table[state * terminals + term] = {
+            SHIFT, static_cast<uint32_t>(trans_table[state][term])};
     }
-  } else {
-    // A -> ... α • => A -> ... • α => ... => A -> • ... α => B -> ... • A
-
-    Token trans_tok =
-        std::get<1>(this->grammar->rules[config.rule_idx])[config.bullet - 1];
-    size_t table_col =
-        trans_tok.id + (trans_tok.kind == TERM ? 0 : this->grammar->terms_size);
-    for (size_t src_idx = 0; src_idx < this->state_count; src_idx++) {
-      // If a state transitions into `state` with token `trans_tok`
-      if (this->trans_table[src_idx][table_col] == state_idx) {
-        LRState &src_state = this->states[src_idx];
-        // Grab the config that originated this transition
-        for (uint32_t c = 0; c < src_state.size(); c++) {
-          if (src_state[c].rule_idx == config.rule_idx &&
-              src_state[c].bullet == config.bullet - 1) {
-            std::vector<LTStackToken> new_orig =
-                this->getOriginators(src_idx, src_state[c]);
-            // Recursively find its originator
-            originators.insert(originators.end(), new_orig.begin(),
-                               new_orig.end());
-          }
-        }
-      }
-    }
-    // add the config with the same rule as config
-  }
-  return originators;
-}
-
-void LRParseTable::addContexts(
-    std::unordered_set<Token, boost::hash<Token>> &gened_contexts,
-    LTStackToken c_0_ltst, std::vector<LTStackToken> const &lane) {
-
-  int32_t c_0_idx;
-  for (int32_t i = lane.size() - 1; i >= 0; i--) {
-    if (lane[i] == c_0_ltst)
-      c_0_idx = i;
-  }
-
-  for (int32_t i = c_0_idx; i >= 0; i--) {
-    if (lane[i].marker || lane[i].zero)
-      continue;
-
-    if (gened_contexts.empty())
-      break;
-
-    Config &config_i = this->states[lane[i].state][lane[i].config];
-    for (Token token : config_i.context) {
-      gened_contexts.erase(token);
-    }
-    for (Token token : gened_contexts) {
-      config_i.context.insert(token);
-    }
-  }
-}
-
-void moveMarkers(std::vector<LTStackToken> &lane, LTStackToken c_0,
-                 LTStackToken c_1, bool tests_failed) {
-  int32_t c_0_idx, c_1_idx;
-  for (int32_t i = lane.size() - 1; i >= 0; i--) {
-    if (lane[i] == c_0)
-      c_0_idx = i;
-    if (lane[i] == c_1)
-      c_1_idx = i;
-  }
-
-  uint32_t markers = 0;
-  for (uint32_t i = c_0_idx + 1; i < c_1_idx; i++) {
-    if (lane[i].marker) {
-      lane[i] = {0, 0, false, true};
-      markers++;
-    }
-  }
-
-  LTStackToken lane_top = lane.back();
-  if (tests_failed)
-    lane.pop_back();
-  for (uint32_t i = 0; i < markers; i++)
-    lane.push_back({0, 0, true, false});
-  if (tests_failed)
-    lane.push_back(lane_top);
-}
-
-void LRParseTable::laneTrace(size_t state, uint32_t config) {
-  std::vector<LTStackToken> lane;
-  std::vector<LTStackToken> stack;
-
-  LaneTraceFlags global_flags = NONE;
-  std::unordered_set<Token, boost::hash<Token>> gened_contexts;
-
-  Config &config_0 = this->states[state][config];
-
-  if (config_0.flags & COMPLETE)
-    return;
-
-  config_0.flags = (LaneTraceFlags)(config_0.flags | IN_LANE);
-  lane.push_back({state, config, false});
-
-  do {
-    LTStackToken c_0_ltst = lane.back();
-    config_0 = this->states[c_0_ltst.state][c_0_ltst.config];
-
-    uint32_t failed_origins = 0;
-
-    // DO LOOP
-    for (LTStackToken c : this->getOriginators(c_0_ltst.state, config_0)) {
-      Config &config_1 = this->states[c.state][c.config];
-      std::vector<Token> cf_1_rhs =
-          std::get<1>(this->grammar->rules[config_1.rule_idx]);
-
-      // Test A
-      if (config_1.bullet < cf_1_rhs.size() - 1) {
-        Token head = cf_1_rhs[config_1.bullet + 1];
-        if (head.kind == TERM)
-          gened_contexts = {head};
-        else
-          gened_contexts = this->getTokenHeads(head.id);
-
-        // We don't allow ε reductions so immediately add the context
-        this->addContexts(gened_contexts, c_0_ltst, lane);
-      }
-      // Test B
-      else if (config_1.flags & COMPLETE) {
-        gened_contexts = config_1.context;
-        this->addContexts(gened_contexts, c_0_ltst, lane);
-      }
-      // Test C
-      else if (config_1.flags & IN_LANE) {
-        moveMarkers(lane, c_0_ltst, c, failed_origins > 0);
-        gened_contexts = config_1.context;
-        this->addContexts(gened_contexts, c_0_ltst, lane);
-      }
-      // All tests failed
-      else {
-        if (failed_origins == 0) {
-          lane.push_back(c);
-          config_1.flags = (LaneTraceFlags)(config_1.flags | IN_LANE);
-        } else if (failed_origins == 1) {
-          LTStackToken c_prev = lane.back();
-          lane.pop_back();
-          lane.push_back({0, 0, true});
-          lane.push_back(c_prev);
-
-          stack.push_back({0, 0, true});
-          stack.push_back(c);
-        } else {
-          stack.push_back(c);
-        }
-        failed_origins++;
-      }
-    }
-
-    if (failed_origins > 0)
-      continue;
-
-    while (true) {
-      if (lane.back().marker) {
-        LTStackToken stack_top = stack.back();
-        LaneTraceFlags &stk_top_flags =
-            this->states[stack_top.state][stack_top.config].flags;
-        while (!stack_top.marker && (stk_top_flags & COMPLETE)) {
-          stack.pop_back();
-        }
-        if (stack_top.marker) {
-          stack.pop_back();
-          lane.pop_back();
-        } else {
-          stack.pop_back();
-          stk_top_flags = (LaneTraceFlags)(stk_top_flags | IN_LANE);
-          lane.push_back(stack_top);
-          break;
-        }
-      } else if (lane.back().zero) {
-        lane.pop_back();
-      } else {
-        Config &lane_top = this->states[lane.back().state][lane.back().config];
-        lane_top.flags = (LaneTraceFlags)(lane_top.flags & ~IN_LANE);
-        lane_top.flags = (LaneTraceFlags)(lane_top.flags | COMPLETE);
-
-        // Propagate contexts
-        if (lane_top.bullet == 0) {
-          for (Config &c : this->states[lane.back().state]) {
-            if (c.bullet == 0) {
-              c.context = lane_top.context;
-              c.flags = (LaneTraceFlags)(c.flags | COMPLETE);
-            }
-          }
-        }
-        if (lane.size() > 1)
-          lane.pop_back();
-        else
-          break;
-      }
-    }
-
-    // End DO LOOP
-  } while (lane.size() > 1);
-}
-
-// Returns the config index holding the right context
-uint32_t LRParseTable::laneTracing(size_t state, size_t reduce_rule) {
-  auto const &[head, rhs, _] = this->grammar->rules[reduce_rule];
-  for (uint32_t i = 0; i < this->states[state].size(); i++) {
-    Config config = this->states[state][i];
-    if (config.rule_idx == reduce_rule && config.bullet == rhs.size()) {
-      this->laneTrace(state, i);
-      return i;
-    }
-  }
-  // Shouldn't reach here
-  std::cerr << "Lane tracing rule " << reduce_rule
-            << " not corresponded with reduction in state " << state
-            << std::endl;
-  return 0;
-}
-
-LRParseTable::LRParseTable(Grammar *grammar) : grammar(grammar) {
-  std::cout << "Making LR(0) Grammar parse table" << std::endl;
-
-  unfinished_lrstate start_set = {Config{this->grammar->start_rule, 0}};
-  LRState start_state = getStateClosure(this->grammar->rules, start_set);
-  this->states = {start_state};
-
-  this->generateStates();
-  this->printStates();
-
-  uint32_t terms = this->grammar->terms_size;
-  uint32_t nonterms = this->grammar->nonterms_size;
-
-  this->goto_table = new int[this->state_count * nonterms];
-  this->action_table = new ParseAction[this->state_count * terms];
-  memset(this->action_table, 0,
-         sizeof(ParseAction) * this->state_count * terms);
-
-  std::unordered_map<size_t,
-                     std::vector<std::unordered_set<Token, boost::hash<Token>>>>
-      conflicting_states;
-
-  for (size_t state = 0; state < this->state_count; state++) {
-    std::vector<std::unordered_set<Token, boost::hash<Token>>> contexts;
-    // Add the transition rules
-    for (uint32_t token = 0; token < terms; token++) {
-      if (this->trans_table[state][token] != -1) {
-        contexts.push_back({Token{TERM, token}});
-        this->action_table[state * terms + token] = {
-            SHIFT, static_cast<uint32_t>(this->trans_table[state][token])};
-      }
-    }
-
     // Fill the GOTO table
-    for (size_t token = 0; token < nonterms; token++)
-      this->goto_table[state * nonterms + token] =
-          this->trans_table[state][terms + token];
-
-    // Add reduction rule contexts
-    bool conflicting = false;
-    for (size_t reduction : this->reductions[state]) {
-      uint32_t config = this->laneTracing(state, reduction);
-      auto &config_context = this->states[state][config].context;
-      contexts.push_back(config_context);
-
-      for (Token const &token : config_context) {
-        if (action_table[state * terms + token.id].kind != EMPTY)
-          conflicting = true;
-        this->action_table[state * terms + token.id] = {REDUCE,
-                                                        (uint32_t)reduction};
-      }
-    }
-    if (conflicting)
-      conflicting_states[state] = contexts;
+    for (size_t nonterm = 0; nonterm < nonterminals; nonterm++)
+      this->goto_table[state * nonterminals + nonterm] =
+          trans_table[state][terminals + nonterm];
   }
-
+  // Add Reduce actions
+  for (auto const &[state, action] : reduce_states) {
+    for (size_t token = 0; token < terminals; token++) {
+      if (action_table[state * terminals + token].kind != EMPTY)
+        throw exceptionOnLine(AMBIGUOUS_GRAMMAR, file_name,
+                              std::get<2>(rules[action.reduce_rule]));
+      this->action_table[state * terminals + token] = action;
+    }
+  }
   // Add Accept actions
-  for (int const &state : this->end_states)
-    this->action_table[state * terms + 1] = {ACCEPT, 0};
+  for (int const &state : end_states)
+    this->action_table[state * terminals + 1] = {ACCEPT, 0};
 
-  // At this point we have a LALR(0) parser
+  for (int *&row : trans_table)
+    delete[] row;
 }
 
 LRParseTable::~LRParseTable() {
   delete[] this->action_table;
   delete[] this->goto_table;
-  for (int *&row : this->trans_table)
-    delete[] row;
 }
 
 ParseAction LRParseTable::getAction(uint32_t state, uint32_t token) const {
-  return this->action_table[state * this->grammar->terms_size + token];
+  return this->action_table[state * this->terms + token];
 }
 
 int LRParseTable::getGoto(uint32_t state, uint32_t nonterm) const {
-  return this->goto_table[state * this->grammar->nonterms_size + nonterm];
+  return this->goto_table[state * this->nonterms + nonterm];
 }
 
 } // namespace grammar
