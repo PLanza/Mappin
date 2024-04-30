@@ -9,15 +9,15 @@
 
 namespace cg = cooperative_groups;
 
-const uint8_t NODE_ARITIES_H[NODE_KINDS] = {
-    1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2, 1, 2, 1, 1, 0, 1, 1,
-};
+const uint8_t NODE_ARITIES_H[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0,
+                                            3, 3, 2, 2, 2, 1, 2, 4, 4, 4,
+                                            3, 1, 0, 1, 1, 1, 2, 1, 3};
 
 __constant__ uint8_t NODE_ARITIES[NODE_KINDS];
 __constant__ Action actions_map[ACTIONS_MAP_SIZE];
 
 #define BLOCK_QUEUE_SIZE (4 * BLOCK_DIM_X)
-#define MAX_NEW_NODES 3
+#define MAX_NEW_NODES 4
 #define THREAD_BUFFER_SIZE 4
 
 __device__ int atomicAggInc(uint32_t *ctr) {
@@ -46,80 +46,6 @@ __device__ inline void unlock(NodeElement *node) {
 }
 __device__ inline bool is_locked(NodeElement *node) {
   return node[0].header.lock == threadIdx.x + blockDim.x * blockIdx.x;
-}
-
-// Perform connections and return if a new interaction needs to be added
-__device__ inline bool makeConnection(ConnectAction ca, NodeElement *&n1,
-                                      NodeElement *&n2,
-                                      NodeElement **const active_pair,
-                                      NodeElement **const new_nodes) {
-  uint64_t p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
-
-  if (connect_g(ca.c1) == ACTIVE_PAIR) {
-    n1 = active_pair[connect_n(ca.c1)];
-  } else if (connect_g(ca.c1) == VARS) {
-    n1 =
-        active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1)].port_node;
-    p1 = active_pair[connect_n(ca.c1)][1 + 2 * (connect_p(ca.c1) + 1) + 1]
-             .port_port;
-  } else {
-    n1 = new_nodes[connect_n(ca.c1)];
-  }
-
-  if (connect_g(ca.c2) == ACTIVE_PAIR) {
-    n2 = active_pair[connect_n(ca.c2)];
-  } else if (connect_g(ca.c2) == VARS) {
-    n2 =
-        active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1)].port_node;
-    p2 = active_pair[connect_n(ca.c2)][1 + 2 * (connect_p(ca.c2) + 1) + 1]
-             .port_port;
-  } else {
-    n2 = new_nodes[connect_n(ca.c2)];
-  }
-
-  // printf("%p: %d[%lu] --- %d[%lu]: %p\n", n1, n1->header.kind, p1,
-  //        n2->header.kind, p2, n2);
-
-  // Potential contention
-  if (connect_g(ca.c1) == VARS) {
-    uint64_t old_node =
-        reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c1)]);
-    uint64_t old_port = connect_p(ca.c1) + 1;
-    unsigned long long assumed_node, assumed_port;
-    do {
-      assumed_node = old_node;
-      assumed_port = old_port;
-      old_node = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1, assumed_node,
-                           reinterpret_cast<uintptr_t>(n2));
-      // Chance of failure here!
-      old_port = atomicCAS((unsigned long long *)n1 + 1 + 2 * p1 + 1,
-                           assumed_port, p2);
-    } while (assumed_node != old_node || assumed_port != old_port);
-  } else {
-    // We want these assignments to be a single memory write
-    ((Port *)(n1 + 1))[p1] = {n2, p2};
-  }
-
-  if (connect_g(ca.c2) == VARS) {
-    uint64_t old_node =
-        reinterpret_cast<uintptr_t>(active_pair[connect_n(ca.c2)]);
-    uint64_t old_port = connect_p(ca.c2) + 1;
-    unsigned long long assumed_node, assumed_port;
-    do {
-      assumed_node = old_node;
-      assumed_port = old_port;
-      old_node = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2, assumed_node,
-                           reinterpret_cast<uintptr_t>(n1));
-      // Chance of failure here!
-      old_port = atomicCAS((unsigned long long *)n2 + 1 + 2 * p2 + 1,
-                           assumed_port, p1);
-    } while (assumed_node != old_node || assumed_port != old_port);
-  } else {
-    // We want these assignments to be a single memory write
-    ((Port *)(n2 + 1))[p2] = {n1, p1};
-  }
-
-  return p1 == 0 && p2 == 0;
 }
 
 // Could try separating this into a separate kernel
@@ -365,6 +291,7 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
 
         new_nodes[next_new] = (NodeElement *)malloc(
             sizeof(NodeElement) * (1 + 2 * (NODE_ARITIES[nna.kind] + 1)));
+        // printf("new: %p\n", new_nodes[next_new]);
         // Should do this in one memory operation
         new_nodes[next_new][0] = {{nna.kind, static_cast<uint16_t>(value), 0}};
 
@@ -423,6 +350,9 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
             is_locked(n1) && is_locked(n2)) {
           // printf("%p: %d[%lu] --- %d[%lu]: %p\n", n1, n1->header.kind, p1,
           //        n2->header.kind, p2, n2);
+          // printf("%d[%lu] --- %d[%lu]\n", n1->header.kind, p1,
+          // n2->header.kind,
+          //        p2);
 
           ((Port *)(n1 + 1))[p1] = {n2, p2};
           ((Port *)(n2 + 1))[p2] = {n1, p1};
@@ -463,8 +393,10 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     if (running) {
       while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
         if (actions[next_action].action.free) {
+          // printf("freeing: %p\n", left);
           free(left);
         } else {
+          // printf("freeing: %p\n", right);
           free(right);
         }
 

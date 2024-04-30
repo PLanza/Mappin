@@ -39,22 +39,49 @@ uint64_t HostINetwork::stackStateToNode(grammar::StackState state) {
     return this->createNode(SYM, state.value);
   case grammar::ANY:
     return this->createNode(ANY, 0);
-  case grammar::REST: {
+  case grammar::REST:
     return this->createNode(BAR, 0);
-  }
+  case grammar::STAR:
+    return this->createNode(STAR, 0);
+  case grammar::END_STAR:
+    return this->createNode(END_STAR, 0);
   }
   return 0;
 }
 
 uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
+  std::vector<uint64_t> rule_star_nodes;
   uint64_t product = this->createNode(GAMMA, 1);
 
   // Create reduction rule chains
   uint64_t prev_rule = product;
-  for (uint32_t rule : action.reduce_rules) {
-    uint64_t temp = this->createNode(SYM, rule);
-    this->connect(prev_rule, 1, temp, 0);
-    prev_rule = temp;
+  uint64_t prev_rule_star;
+  for (int32_t rule : action.reduce_rules) {
+    if (rule == -1) {
+      uint64_t rule_star = this->createNode(RULE_STAR, 0);
+      rule_star_nodes.push_back(rule_star);
+
+      this->connect(prev_rule, 1, rule_star, 1);
+
+      prev_rule = rule_star;
+      prev_rule_star = rule_star;
+    } else if (rule == -2) {
+      uint64_t rule_end_star = this->createNode(END_STAR, 0);
+
+      this->connect(prev_rule, 1, rule_end_star, 0);
+      this->connect(prev_rule_star, 3, rule_end_star, 2);
+
+      prev_rule = rule_end_star;
+    } else {
+      uint64_t temp = this->createNode(SYM, rule);
+
+      if (prev_rule == prev_rule_star)
+        this->connect(prev_rule, 2, temp, 0);
+      else
+        this->connect(prev_rule, 1, temp, 0);
+
+      prev_rule = temp;
+    }
   }
   this->connect(prev_rule, 1, this->createNode(END, 0), 0);
 
@@ -69,6 +96,11 @@ uint64_t HostINetwork::createStackActionNetwork(grammar::StackAction &action) {
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.lhs.size(); i++) {
     uint64_t temp = stackStateToNode(action.lhs[i]);
+    if (this->getNodeKind(temp) == END_STAR) {
+      uint64_t rule_star = rule_star_nodes.back();
+      rule_star_nodes.pop_back();
+      this->connect(rule_star, 0, temp, 2);
+    }
     this->connect(lhs_end, 1, temp, 0);
     lhs_end = temp;
   }

@@ -40,6 +40,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
 
   size_t interactions_size = host_network.getInteractions();
   size_t network_size = host_network.getNetworkSize();
+  std::cout << "Network is made of " << network_size << " nodes." << std::endl;
 
   Interaction *interactions =
       (Interaction *)malloc(interactions_size * sizeof(Interaction));
