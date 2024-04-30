@@ -17,7 +17,7 @@ namespace grammar {
 
 enum TokenKind { TERM, NON_TERM };
 
-enum StackStateKind { SOME, ANY, REST };
+enum StackStateKind { SOME, ANY, REST, STAR, END_STAR };
 struct StackState {
   StackStateKind kind;
   uint32_t value;
@@ -29,11 +29,14 @@ struct StackState {
 
 const StackState REST_STATE = {REST, 0};
 const StackState ANY_STATE = {ANY, 0};
+const StackState STAR_STATE = {STAR, 0};
+const StackState END_STAR_STATE = {END_STAR, 0};
 
 struct StackAction {
   std::deque<StackState> lhs;
   std::deque<StackState> rhs;
-  std::deque<uint32_t> reduce_rules;
+  std::deque<int32_t> reduce_rules;
+  bool shifted = false;
 
   bool operator==(grammar::StackAction const &other) const {
     return this->lhs == other.lhs && this->rhs == other.rhs &&

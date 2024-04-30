@@ -6,6 +6,7 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
+#include <optional>
 #include <tuple>
 #include <unordered_map>
 #include <utility>
@@ -128,51 +129,217 @@ void LRGrammar::printParseTable() {
 
 void LRGrammar::printStackActions() { Grammar::printStackActions(false); }
 
-bool mergeStackActions(StackAction &left_action, StackAction right_action) {
+uint32_t mergeStar(size_t &i_l, size_t &i_r, StackAction left_action,
+                   StackAction right_action) {
+  size_t start_i_l = i_l;
+  size_t start_i_r = i_r;
+
+  uint32_t loops = 0;
+
+  i_l++;
+  while (true) {
+    // If reached the end of right_action or reach `-` -> done
+    if (i_r >= right_action.lhs.size() || right_action.lhs[i_r].kind == REST) {
+      // advance i_l until reached END_STAR
+      while (left_action.rhs[i_l].kind != END_STAR)
+        i_l++;
+      i_r = start_i_r - 1;
+      return loops;
+    }
+
+    StackState left_state = left_action.rhs[i_l],
+               right_state = right_action.lhs[i_r];
+
+    if (left_state.kind == SOME && right_state.kind == SOME &&
+        left_state.value != right_state.value) {
+      // advance i_l until reached END_STAR
+      while (left_action.rhs[i_l].kind != END_STAR)
+        i_l++;
+      i_r = start_i_r - 1;
+      return loops;
+    }
+
+    if (left_state.kind == END_STAR) {
+      i_l = start_i_l;
+      start_i_r = i_r;
+      i_r--;
+      loops++;
+    }
+
+    i_l++, i_r++;
+  }
+}
+
+std::optional<StackAction> mergeStackActions(StackAction left_action,
+                                             StackAction right_action) {
   // A-/ should not be able to merge with anything
   if (left_action.rhs.size() == 0)
-    return false;
+    return std::nullopt;
 
-  size_t max_i = std::min(left_action.rhs.size(), right_action.lhs.size());
-  size_t i = 0;
+  size_t i_l = 0, i_r = 0;
+
   // Traverse until reach rest
-  for (; i < max_i; i++) {
-    StackState left_state = left_action.rhs[i],
-               right_state = right_action.lhs[i];
-    if (left_state.kind == REST || right_state.kind == REST)
+  while (i_l < left_action.rhs.size() && i_r < right_action.lhs.size()) {
+    StackState left_state = left_action.rhs[i_l],
+               right_state = right_action.lhs[i_r];
+    if (left_state.kind == REST) {
+      // Remove `-`
+      left_action.lhs.pop_back();
+      // Append suffix
+      left_action.lhs.insert(left_action.lhs.end(),
+                             right_action.lhs.begin() + i_r,
+                             right_action.lhs.end());
       break;
-    if (left_state.kind == SOME && right_state.kind == SOME) {
-      if (left_state.value != right_state.value)
-        return false;
     }
+    if (right_state.kind == REST) {
+      if (right_action.rhs.size() == 0)
+        break;
+
+      // Remove `-`
+      right_action.rhs.pop_back();
+      // Append suffix
+      right_action.rhs.insert(right_action.rhs.end(),
+                              left_action.rhs.begin() + i_l,
+                              left_action.rhs.end());
+      break;
+    }
+
+    if (left_state.kind == SOME && right_state.kind == SOME &&
+        left_state.value != right_state.value)
+      return std::nullopt;
+
+    if (left_state.kind == STAR)
+      mergeStar(i_l, i_r, left_action, right_action);
+
+    i_l++, i_r++;
   }
 
-  if (left_action.rhs[i].kind == REST) {
-    left_action.lhs.erase(left_action.lhs.end() - 1);
-    left_action.lhs.insert(left_action.lhs.end(), right_action.lhs.begin() + i,
-                           right_action.lhs.end());
-  } else if (right_action.lhs[i].kind == REST && right_action.rhs.size() > 0) {
-    right_action.rhs.erase(right_action.rhs.end() - 1);
-    right_action.rhs.insert(right_action.rhs.end(), left_action.rhs.begin() + i,
-                            left_action.rhs.end());
-  }
   left_action.rhs = right_action.rhs;
   // Not sure this works for reduce chains longer than 3
   left_action.reduce_rules.insert(left_action.reduce_rules.begin(),
                                   right_action.reduce_rules.begin(),
                                   right_action.reduce_rules.end());
+
+  left_action.shifted = right_action.shifted;
+
+  return left_action;
+}
+
+struct Markers {
+  int32_t state;
+  uint32_t rule;
+};
+struct UnfinishedStackAction {
+  StackAction action;
+  std::unordered_map<uint32_t, Markers> visited;
+};
+
+void LRGrammar::getStackActionClosure(uint32_t term) {
+  // Those that have shifted once
+  std::vector<StackAction> final_actions;
+  // Those in the process of being reduced
+  std::vector<UnfinishedStackAction> current_actions;
+
+  // Initialize current actions
+  for (int i = 0; i < this->stack_actions[term].size(); i++) {
+    StackAction &action = this->stack_actions[term][i];
+    if (action.shifted)
+      final_actions.push_back(action);
+    else
+      current_actions.push_back(
+          {action,
+           {{i,
+             {(int32_t)action.lhs.size() - 1,
+              (uint32_t)action.reduce_rules.size() - 1}}}});
+  }
+
+  while (!current_actions.empty()) {
+    UnfinishedStackAction left_action = current_actions.back();
+    current_actions.pop_back();
+
+    for (int i = 0; i < this->stack_actions[term].size(); i++) {
+
+      if (auto merged_action = mergeStackActions(
+              left_action.action, this->stack_actions[term][i])) {
+        // If looping then encapsulate loop with STARs
+        if (left_action.visited.find(i) != left_action.visited.end()) {
+          if (left_action.visited[i].state != -1) {
+            // Encapsulate with STARs
+            merged_action->lhs.insert(merged_action->lhs.begin() +
+                                          left_action.visited[i].state,
+                                      STAR_STATE);
+            merged_action->lhs.insert(merged_action->lhs.end() - 1,
+                                      END_STAR_STATE);
+
+            merged_action->reduce_rules.insert(
+                merged_action->reduce_rules.begin() +
+                    left_action.visited[i].rule,
+                -1);
+            merged_action->reduce_rules.insert(
+                merged_action->reduce_rules.end() - 1, -2);
+
+            // Do not loop again
+            current_actions.push_back({*merged_action, left_action.visited});
+            current_actions.back().visited[i].state = -1;
+          }
+        } else {
+          if (merged_action->shifted)
+            final_actions.push_back(*merged_action);
+          else {
+            current_actions.push_back({*merged_action, left_action.visited});
+            current_actions.back().visited[i].state =
+                left_action.action.lhs.size();
+            current_actions.back().visited[i].rule =
+                left_action.action.reduce_rules.size();
+          }
+        }
+      }
+    }
+  }
+
+  this->stack_actions[term] = final_actions;
+  this->clearRepeatedActions(term);
+}
+
+int32_t containsLoop(StackAction &action) {
+  for (int32_t i = 0; i < action.lhs.size(); i++)
+    if (action.lhs[i].kind == STAR)
+      return i;
+
+  return false;
+}
+
+bool areEqual(StackAction &left, StackAction &right, int32_t star) {
+  if (right.lhs.size() < star)
+    return false;
+
+  uint32_t il = 0, ir = 0;
+  while (il < left.lhs.size() && ir < right.lhs.size()) {
+    if (left.lhs[il].kind == STAR) {
+      while (left.lhs[il].kind != END_STAR)
+        il++;
+      il++;
+    }
+    if (!(left.lhs[il] == right.lhs[ir]))
+      return false;
+
+    il++;
+    ir++;
+  }
   return true;
 }
 
-void LRGrammar::getStackActionClosure(uint32_t term) {
-  std::vector<StackAction> curr_actions;
-  while (this->stack_actions[term] != curr_actions) {
-    curr_actions = this->stack_actions[term];
-    for (StackAction &left_action : this->stack_actions[term]) {
-      for (StackAction &right_action : this->stack_actions[term]) {
-        if (mergeStackActions(left_action, right_action))
-          break;
-      }
+void LRGrammar::clearRepeatedActions(uint32_t term) {
+  std::vector<StackAction> &actions = this->stack_actions[term];
+
+  for (auto left = actions.begin(); left < actions.end(); left++) {
+    int32_t star = containsLoop(*left);
+    if (star == -1)
+      continue;
+
+    for (auto right = actions.begin(); right < actions.end(); right++) {
+      if (left != right && areEqual(*left, *right, star))
+        actions.erase(right);
     }
   }
 }
@@ -198,7 +365,8 @@ void LRGrammar::generateStackActions() {
         this->stack_actions[term].push_back(
             StackAction{{{SOME, state}, REST_STATE},
                         {{SOME, action.reduce_rule}, {SOME, state}, REST_STATE},
-                        {}});
+                        {},
+                        true});
         break;
       }
       case REDUCE: {
@@ -221,13 +389,14 @@ void LRGrammar::generateStackActions() {
                           {{SOME, static_cast<uint32_t>(goto_state)},
                            {SOME, state},
                            REST_STATE},
-                          {action.reduce_rule}});
+                          {(int32_t)action.reduce_rule},
+                          false});
         }
         break;
       }
       case ACCEPT: {
         this->stack_actions[term].push_back(
-            StackAction{{{SOME, state}, REST_STATE}, {}, {}});
+            StackAction{{{SOME, state}, REST_STATE}, {}, {}, true});
         break;
       }
       case EMPTY:
@@ -243,7 +412,7 @@ void LRGrammar::traverseRules(inet::Node *cons,
   if (cons->kind == inet::CONS) {
     this->traverseRules(cons->ports[1].node, stack);
     this->traverseRules(cons->ports[2].node, stack);
-  } else if (cons->kind == inet::RULE) {
+  } else if (cons->kind == inet::SYM) {
     this->traverseRules(cons->ports[1].node, stack);
     auto const &[head, rhs, _] = this->getRule(cons->value);
     ParseTree *tree = new ParseTree(NON_TERM, cons->value, rhs.size());
@@ -371,6 +540,18 @@ LRState getStateClosure(grammar_rules const &rules,
   return state;
 }
 
+bool equalStates(LRState const &left, LRState const &right) {
+  for (Config const &l_config : left) {
+    bool contains = false;
+    for (Config const &r_config : right) {
+      contains |= l_config == r_config;
+    }
+    if (!contains)
+      return false;
+  }
+  return true;
+}
+
 void LRParseTable::generateStates() {
   std::size_t curr_state = 0;
   std::size_t prev_size = this->states.size();
@@ -422,18 +603,19 @@ void LRParseTable::generateStates() {
       int repeat = -1;
       // Check if this new state is the same to any previous ones
       for (size_t other = 0; other < prev_size; other++) {
-        if (finished_state == this->states[other])
+        if (equalStates(finished_state, this->states[other]))
           repeat = other;
       }
 
       size_t table_idx = token.id + (token.kind == TERM ? 0 : terms);
       if (repeat == -1) {
-        // If the new state is original then transition to it and add it to the
-        // set of states
+        // If the new state is original then transition to it and add it to
+        // the set of states
         this->trans_table.back()[table_idx] = this->states.size();
         this->states.push_back(finished_state);
       } else
-        // If new state has already been seen then transition into the original
+        // If new state has already been seen then transition into the
+        // original
         this->trans_table.back()[table_idx] = repeat;
     }
 
@@ -782,8 +964,12 @@ LRParseTable::LRParseTable(Grammar *grammar) : grammar(grammar) {
       contexts.push_back(config_context);
 
       for (Token const &token : config_context) {
-        if (action_table[state * terms + token.id].kind != EMPTY)
+        if (action_table[state * terms + token.id].kind != EMPTY) {
           conflicting = true;
+          std::cout << "Ambiguous Grammar: "
+                    << action_table[state * terms + token.id].reduce_rule << " "
+                    << reduction << std::endl;
+        }
         this->action_table[state * terms + token.id] = {REDUCE,
                                                         (uint32_t)reduction};
       }

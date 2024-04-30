@@ -1,5 +1,6 @@
 #include <cassert>
 #include <deque>
+#include <vector>
 
 #include "generate/grammar.hpp"
 #include "inet.hpp"
@@ -15,21 +16,50 @@ Node *stackStateToNode(grammar::StackState state) {
     return newNode(SYM, state.value);
   case grammar::ANY:
     return newNode(ANY, 0);
-  case grammar::REST: {
+  case grammar::REST:
     return newNode(BAR, 0);
-  }
+  case grammar::STAR:
+    return newNode(STAR, 0);
+  case grammar::END_STAR:
+    return newNode(END_STAR, 0);
+  default:
+    return nullptr;
   }
 }
 
 Node *getStackActionNetwork(grammar::StackAction &action) {
+  std::vector<Node *> rule_star_nodes;
   Node *product = newNode(GAMMA, 1);
 
   // Create reduction rule chains
   Node *prev_rule = product;
-  for (uint32_t rule : action.reduce_rules) {
-    Node *temp = newNode(SYM, rule);
-    connect(prev_rule, 1, temp, 0);
-    prev_rule = temp;
+  Node *prev_rule_star;
+  for (int rule : action.reduce_rules) {
+    if (rule == -1) {
+      Node *rule_star = newNode(RULE_STAR, 0);
+      rule_star_nodes.push_back(rule_star);
+
+      connect(prev_rule, 1, rule_star, 1);
+
+      prev_rule = rule_star;
+      prev_rule_star = rule_star;
+    } else if (rule == -2) {
+      Node *rule_end_star = newNode(END_STAR, 0);
+
+      connect(prev_rule, 1, rule_end_star, 0);
+      connect(prev_rule_star, 3, rule_end_star, 2);
+
+      prev_rule = rule_end_star;
+    } else {
+      Node *temp = newNode(SYM, rule);
+
+      if (prev_rule == prev_rule_star)
+        connect(prev_rule, 2, temp, 0);
+      else
+        connect(prev_rule, 1, temp, 0);
+
+      prev_rule = temp;
+    }
   }
   connect(prev_rule, 1, newNode(END, 0), 0);
 
@@ -43,6 +73,12 @@ Node *getStackActionNetwork(grammar::StackAction &action) {
   // Create -|X>-|Y>-...-|Z>- chains
   for (size_t i = 1; i < action.lhs.size(); i++) {
     Node *temp = stackStateToNode(action.lhs[i]);
+    if (temp->kind == END_STAR) {
+      Node *rule_star = rule_star_nodes.back();
+      rule_star_nodes.pop_back();
+      connect(rule_star, 0, temp, 2);
+    }
+
     connect(lhs_end, 1, temp, 0);
     lhs_end = temp;
   }

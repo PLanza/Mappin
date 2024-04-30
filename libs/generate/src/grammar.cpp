@@ -156,25 +156,38 @@ void Grammar::printStackState(StackState state, bool as_token) {
     std::cout << "-";
     break;
   }
+  case STAR: {
+    std::cout << "(";
+    break;
+  }
+  case END_STAR: {
+    std::cout << ")*";
+    break;
+  }
   }
 }
 
 void Grammar::printStackAction(const StackAction &stack_action,
                                bool as_tokens) {
-  for (const grammar::StackState &state : stack_action.lhs) {
+  for (const grammar::StackState &state : stack_action.lhs)
     this->printStackState(state, as_tokens);
-  }
+
   std::cout << "/";
-  for (const grammar::StackState &state : stack_action.rhs) {
+  for (const grammar::StackState &state : stack_action.rhs)
     this->printStackState(state, as_tokens);
-  }
 
   if (stack_action.reduce_rules.empty())
     return;
 
   std::cout << " (";
   for (int j = 0; j < stack_action.reduce_rules.size(); j++) {
-    std::cout << stack_action.reduce_rules[j];
+    if (stack_action.reduce_rules[j] == -1) {
+      std::cout << "(";
+      continue;
+    } else if (stack_action.reduce_rules[j] == -2)
+      std::cout << ")*";
+    else
+      std::cout << stack_action.reduce_rules[j];
     if (j < stack_action.reduce_rules.size() - 1)
       std::cout << ",";
   }

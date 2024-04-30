@@ -32,7 +32,7 @@ struct Action {
   } action;
 };
 
-inline const uint8_t MAX_ACTIONS = 14;
+inline const uint8_t MAX_ACTIONS = 18;
 inline const size_t ACTIONS_MAP_SIZE =
     ((NODE_KINDS * NODE_KINDS + NODE_KINDS) / 2) * 2 * MAX_ACTIONS;
 

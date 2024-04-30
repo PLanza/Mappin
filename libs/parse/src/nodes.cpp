@@ -5,13 +5,12 @@
 
 namespace inet {
 
-int node_arities[NODE_KINDS] = {
-    1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2, 1, 2, 1, 1, 0, 1, 1, 1,
-};
+int node_arities[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2,
+                                1, 2, 4, 4, 4, 3, 1, 0, 1, 1, 1, 2, 1, 3};
 std::string node_strings[NODE_KINDS] = {
-    "out", "DEL",  "δ", "γ",   "[]", "::",  "@",   "fold",
-    "if",  "bool", "k", "k\'", "/",  "○",   "○_X", "○_$",
-    "-",   "-\'",  "$", "X",   "_",  "○__", "R",
+    "out", "DEL", "δ", "γ", "[]",  "::",  "@",   "fold", "if",   "bool",
+    "k",   "k\'", "/", "○", "○_X", "○_$", "○__", "○*",   "○*_X", "○*__",
+    "!○*", "-",   "$", "X", "_",   "*",   "*'",  "!*",   "R*",
 };
 
 std::deque<Interaction> interactions;
@@ -216,7 +215,7 @@ void init() {
              });
 
   addActions(CONT, SLASH,
-             {Action(CONT_AUX, 0), Action(BAR_AUX, 0),
+             {Action(CONT_AUX, 0), Action(BAR, 1),
               Action({VARS, 0, 2}, {ACTIVE_PAIR, 1, 0}),
               Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
               Action({VARS, 1, 1}, {NEW_NODES, 0, 1}),
@@ -224,14 +223,13 @@ void init() {
               Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
               Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 1, 1}),
               Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 0, 3}), Action(true)});
-  addActions(CONT_AUX, SLASH,
-             {Action(COMP, 0), Action(BAR_AUX, 0),
-              Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-              Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
-              Action({VARS, 0, 2}, {NEW_NODES, 1, 1}),
-              Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
-              Action({VARS, 1, 1}, {NEW_NODES, 1, 0}), Action(true),
-              Action(false)});
+  addActions(
+      CONT_AUX, SLASH,
+      {Action(COMP, 0), Action(BAR, 1), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+       Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+       Action({VARS, 0, 2}, {NEW_NODES, 1, 1}),
+       Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+       Action({VARS, 1, 1}, {NEW_NODES, 1, 0}), Action(true), Action(false)});
 
   addActions(COMP, SYM,
              {Action(COMP_SYM, -2), Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
@@ -301,7 +299,7 @@ void init() {
              {Action(BOOL, 1), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
               Action(true), Action(false)});
 
-  addActions(BAR, BAR,
+  addActions(BAR, BAR, true,
              {
                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
@@ -324,28 +322,23 @@ void init() {
                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
                  Action(true),
              });
-  addActions(BAR, BAR_AUX,
+  addActions(BAR, BAR, false,
              {
                  Action({VARS, 0, 0}, {VARS, 1, 0}),
                  Action(true),
                  Action(false),
              });
-  addActions(BAR_AUX, SYM,
+  addActions(BAR, STAR,
              {
                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
                  Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
              });
-  addActions(BAR_AUX, ANY,
+  addActions(BAR, END_STAR,
              {
                  Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
                  Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
                  Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
-             });
-  addActions(BAR_AUX, END,
-             {
-                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
-                 Action(true),
              });
 
   addActions(END, END,
@@ -383,6 +376,223 @@ void init() {
                  Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
                  Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 1, 1}),
                  Action(true),
+             });
+
+  addActions(COMP_SYM, STAR,
+             {
+                 Action(SLASH, 0),
+                 Action(SLASH, 0),
+                 Action(SYM, -1),
+                 Action(COMP_STAR_SYM, -1),
+                 Action({VARS, 0, 0}, {NEW_NODES, 3, 1}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 3, 2}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 3, 0}),
+                 Action({ACTIVE_PAIR, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 2}),
+                 Action({NEW_NODES, 0, 0}, {NEW_NODES, 3, 4}),
+                 Action({NEW_NODES, 1, 0}, {NEW_NODES, 3, 3}),
+                 Action({NEW_NODES, 2, 0}, {NEW_NODES, 1, 1}),
+                 Action({NEW_NODES, 2, 1}, {NEW_NODES, 1, 2}),
+                 Action(true),
+             });
+  addActions(COMP_STAR_SYM, SYM, true,
+             {
+                 Action(COMP_STAR, 0),
+                 Action({VARS, 0, 3}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 4}),
+                 Action(true),
+             });
+  addActions(COMP_STAR_SYM, SYM, false,
+             {
+                 Action(COMP_STAR_END, 0),
+                 Action(STAR_DEL, 0),
+                 Action(DELETE, 0),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 1}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 2, 0}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
+                 Action({NEW_NODES, 1, 1}, {NEW_NODES, 0, 2}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(COMP_STAR_SYM, ANY,
+             {
+                 Action(COMP_STAR, 0),
+                 Action({VARS, 0, 3}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 4}),
+                 Action(true),
+             });
+  addActions(COMP_STAR_ANY, SYM,
+             {
+                 Action(COMP_STAR, 0),
+                 Action({VARS, 0, 3}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 4}),
+                 Action(true),
+             });
+  addActions(COMP_STAR_ANY, ANY,
+             {
+                 Action(COMP_STAR, 0),
+                 Action({VARS, 0, 3}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 4}),
+                 Action(true),
+             });
+  addActions(COMP_STAR_SYM, END_STAR,
+             {
+                 Action(COMP_STAR_END, 1),
+                 Action(SYM, -1),
+                 Action(ANY, 1),
+                 Action(DELETE, 0),
+                 Action({VARS, 0, 0}, {NEW_NODES, 1, 1}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 3, 0}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 1, 1}, {NEW_NODES, 2, 0}),
+                 Action({ACTIVE_PAIR, 1, 0}, {NEW_NODES, 0, 2}),
+                 Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 2, 1}),
+                 Action({NEW_NODES, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action(true),
+             });
+
+  addActions(COMP_STAR, SYM,
+             {
+                 Action(COMP_STAR_SYM, -2),
+                 Action({VARS, 0, 2}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 0, 4}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 3}),
+                 Action(true),
+             });
+  addActions(COMP_STAR, ANY,
+             {
+                 Action(COMP_STAR_SYM, -2),
+                 Action({VARS, 0, 2}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 0, 4}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 0, 3}),
+                 Action(true),
+             });
+  addActions(COMP_STAR, BAR,
+             {
+                 Action(COMP_STAR_END, 0),
+                 Action(STAR_DEL, 0),
+                 Action(DELETE, 0),
+                 Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 2, 0}),
+                 Action({ACTIVE_PAIR, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({NEW_NODES, 0, 2}, {NEW_NODES, 1, 1}),
+                 Action(true),
+             });
+  addActions(COMP_STAR, END,
+             {
+                 Action(COMP_STAR_END, 0),
+                 Action(STAR_DEL, 0),
+                 Action(DELETE, 0),
+                 Action({VARS, 0, 0}, {NEW_NODES, 1, 0}),
+                 Action({VARS, 0, 1}, {NEW_NODES, 0, 3}),
+                 Action({VARS, 0, 2}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 0, 3}, {NEW_NODES, 2, 0}),
+                 Action({ACTIVE_PAIR, 1, 0}, {NEW_NODES, 0, 1}),
+                 Action({NEW_NODES, 0, 2}, {NEW_NODES, 1, 1}),
+                 Action(true),
+             });
+
+  addActions(SLASH, COMP_STAR_END, true,
+             {
+                 Action(COMP, 0),
+                 Action({VARS, 0, 1}, {VARS, 1, 0}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 1, 1}, {NEW_NODES, 0, 1}),
+                 Action({VARS, 1, 2}, {NEW_NODES, 0, 2}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(SLASH, COMP_STAR_END, false,
+             {
+                 Action(COMP, 0),
+                 Action({VARS, 0, 1}, {VARS, 1, 1}),
+                 Action({VARS, 0, 0}, {NEW_NODES, 0, 1}),
+                 Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
+                 Action({VARS, 1, 2}, {NEW_NODES, 0, 2}),
+                 Action(true),
+                 Action(false),
+             });
+  addActions(SLASH, SYM,
+             {
+                 Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 2}, {ACTIVE_PAIR, 1, 1}),
+             });
+  addActions(SLASH, ANY,
+             {
+                 Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 2}, {ACTIVE_PAIR, 1, 1}),
+             });
+  addActions(SLASH, STAR,
+             {
+                 Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 2}, {ACTIVE_PAIR, 1, 1}),
+             });
+
+  addActions(SYM, STAR_DEL,
+             {Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}), Action(true)});
+  addActions(ANY, STAR_DEL,
+             {Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}), Action(true)});
+  addActions(END_STAR, STAR_DEL,
+             {Action(NIL, 1), Action({VARS, 0, 0}, {VARS, 1, 0}),
+              Action({VARS, 0, 1}, {NEW_NODES, 0, 0}), Action(true),
+              Action(false)});
+  addActions(NIL, RULE_STAR,
+             {Action({VARS, 1, 0}, {VARS, 1, 2}),
+              Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 0}), Action(false)});
+  addActions(NIL, END_STAR,
+             {Action({VARS, 1, 0}, {VARS, 1, 1}), Action(true), Action(false)});
+  addActions(NIL, SYM,
+             {Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}), Action(false)});
+
+  addActions(ANY, RULE_STAR,
+             {Action({VARS, 1, 1}, {ACTIVE_PAIR, 1, 0}),
+              Action({VARS, 1, 2}, {ACTIVE_PAIR, 1, 2}),
+              Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 3}), Action(true)});
+  addActions(SYM, RULE_STAR,
+             {
+                 Action(SYM, -1),
+                 Action({VARS, 0, 0}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 1, 0}, {ACTIVE_PAIR, 0, 0}),
+                 Action({VARS, 1, 1}, {NEW_NODES, 0, 0}),
+                 Action({ACTIVE_PAIR, 0, 1}, {ACTIVE_PAIR, 1, 1}),
+                 Action({NEW_NODES, 0, 1}, {ACTIVE_PAIR, 1, 2}),
+             });
+  addActions(RULE_STAR, END_STAR,
+             {
+                 Action({VARS, 0, 1}, {ACTIVE_PAIR, 1, 0}),
+                 Action({VARS, 0, 2}, {ACTIVE_PAIR, 0, 0}),
+                 Action({VARS, 1, 1}, {ACTIVE_PAIR, 0, 2}),
+                 Action({ACTIVE_PAIR, 0, 3}, {ACTIVE_PAIR, 1, 2}),
              });
 }
 

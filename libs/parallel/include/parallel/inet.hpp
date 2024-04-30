@@ -6,14 +6,14 @@
 typedef uint64_t node_elem;
 typedef uint8_t node_kind;
 
-inline const uint8_t NODE_KINDS = 22;
+inline const uint8_t NODE_KINDS = 29;
 
 enum NodeKind {
-  OUTPUT, // Not really necessary
+  OUTPUT,
   DELETE,
   DELTA,
   GAMMA, // γ_0 is regular γ, γ_1 is ×
-  NIL,
+  NIL,   // Also for deleting RULE_STAR
   CONS,
   APPEND,
   FOLD,
@@ -26,11 +26,18 @@ enum NodeKind {
   COMP_SYM,
   COMP_END,
   COMP_ANY,
+  COMP_STAR,
+  COMP_STAR_SYM,
+  COMP_STAR_ANY,
+  COMP_STAR_END,
   BAR,
-  BAR_AUX,
   END,
-  SYM, // also for RULE
-  ANY,
+  SYM, // Also acts as RULE
+  ANY, // Also acts as LOOP
+  STAR,
+  END_STAR,
+  STAR_DEL,
+  RULE_STAR,
 };
 
 extern const uint8_t NODE_ARITIES_H[NODE_KINDS];

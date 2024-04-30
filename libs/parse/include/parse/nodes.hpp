@@ -9,14 +9,14 @@
 
 namespace inet {
 
-const int NODE_KINDS = 23;
+const int NODE_KINDS = 29;
 
 enum NodeKind {
   OUTPUT,
   DELETE,
   DELTA,
   GAMMA, // γ_0 is regular γ, γ_1 is ×
-  NIL,
+  NIL,   // Also for deleting RULE_STAR
   CONS,
   APPEND,
   FOLD,
@@ -29,12 +29,18 @@ enum NodeKind {
   COMP_SYM,
   COMP_END,
   COMP_ANY,
+  COMP_STAR,
+  COMP_STAR_SYM,
+  COMP_STAR_ANY,
+  COMP_STAR_END,
   BAR,
-  BAR_AUX,
   END,
-  SYM,
-  ANY,
-  RULE, // Could use SYM for RULE
+  SYM, // Also acts as RULE
+  ANY, // Also acts as LOOP
+  STAR,
+  END_STAR,
+  STAR_DEL,
+  RULE_STAR,
 };
 
 extern int node_arities[NODE_KINDS];

@@ -8,7 +8,7 @@
 
 namespace inet {
 
-const uint32_t MAX_NEW_NODES = 3;
+const uint32_t MAX_NEW_NODES = 4;
 
 std::unordered_set<Node *> nodes;
 
@@ -69,10 +69,10 @@ void interact() {
   // std::cout << interactions.size() << " active interactions" << std::endl;
 
   Interaction inters[BLOCK_SIZE];
-  Interaction to_add[12 * BLOCK_SIZE];
-  Port connections[12 * BLOCK_SIZE][2];
+  Interaction to_add[15 * BLOCK_SIZE];
+  Port connections[15 * BLOCK_SIZE][2];
 
-  for (int i = 0; i < 12 * BLOCK_SIZE; i++) {
+  for (int i = 0; i < 15 * BLOCK_SIZE; i++) {
     to_add[i] = {nullptr, nullptr};
     connections[i][0] = {nullptr, 0};
     connections[i][1] = {nullptr, 0};
@@ -100,15 +100,15 @@ void interact() {
 
     total_interactions++;
 
-    std::cout << left->kind << "[" << left->value << "]"
-              << " >-< " << right->kind << "[" << right->value << "]"
-              << std::endl;
+    // std::cout << left->kind << "[" << left->value << "]"
+    //           << " >-< " << right->kind << "[" << right->value << "]"
+    //           << std::endl;
 
     std::vector<Action> &actions =
         getActions(left->kind, right->kind, left->value == right->value);
 
     if (actions.empty()) {
-      std::cout << "Reached unimplemented interaction" << left->kind << " >< "
+      std::cout << "Reached unimplemented interaction " << left->kind << " >< "
                 << right->kind << std::endl;
       return;
     }
@@ -198,13 +198,14 @@ void interact() {
       next_action++;
     }
   }
-  for (int i = 0; i < 12 * BLOCK_SIZE; i++) {
+  for (int i = 0; i < 15 * BLOCK_SIZE; i++) {
     if (connections[i][0].node == nullptr)
       continue;
     else {
-      std::cout << connections[i][0].node->kind << "[" << connections[i][0].port
-                << "] --- " << connections[i][1].node->kind << "["
-                << connections[i][1].port << "]" << std::endl;
+      // std::cout << connections[i][0].node->kind << "[" <<
+      // connections[i][0].port
+      //           << "] --- " << connections[i][1].node->kind << "["
+      //           << connections[i][1].port << "]" << std::endl;
     }
     if (to_add[i].n1 == nullptr)
       continue;

@@ -73,7 +73,7 @@ void LLGrammar::generateStackActions() {
   }
 }
 
-std::pair<std::deque<StackState>, std::deque<uint32_t>>
+std::pair<std::deque<StackState>, std::deque<int32_t>>
 LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
   std::vector<Token> rhs = std::get<1>(this->rules[rule]);
   Token first = rhs[0];
@@ -85,7 +85,7 @@ LLGrammar::findTerminal(uint32_t term_id, uint32_t rule) {
   switch (first.kind) {
   case (TERM): {
     if (term_id == first.id)
-      return {stack_suffix, {rule}};
+      return {stack_suffix, {(int32_t)rule}};
     else {
       std::cerr << "error: got wrong terminal \'" << this->terminals[term_id]
                 << "\' when generating stack actions\n"

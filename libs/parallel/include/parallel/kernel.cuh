@@ -4,7 +4,7 @@
 #include "inet.hpp"
 
 #define MAX_NETWORK_SIZE (1024 * 1024 * 16) // ~44.7M nodes
-#define MAX_INTERACTIONS_SIZE (1024)
+#define MAX_INTERACTIONS_SIZE (1024 * 1024)
 
 #define GRID_DIM_X 16
 #define BLOCK_DIM_X 256
