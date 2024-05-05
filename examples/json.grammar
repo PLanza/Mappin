@@ -1,0 +1,32 @@
+$ json := element
+
+value := 
+    object
+  | array
+  | STRING
+  | NUMBER
+  | TRUE
+  | FALSE
+  | NULL
+
+object :=
+    LCURL RCURL
+  | LCURL members RCURL
+
+members :=
+    member
+  | member COMMA members
+
+member :=
+    STRING COLON element
+
+array :=
+    LSQUARE RSQUARE
+  | LSQUARE elements RSQUARE
+
+elements :=
+    element
+  | element COMMA elements
+
+element := 
+  value 

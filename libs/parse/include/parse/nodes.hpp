@@ -9,7 +9,7 @@
 
 namespace inet {
 
-const int NODE_KINDS = 29;
+const int NODE_KINDS = 30;
 
 enum NodeKind {
   OUTPUT,
@@ -33,6 +33,7 @@ enum NodeKind {
   COMP_STAR_SYM,
   COMP_STAR_ANY,
   COMP_STAR_END,
+  COMP_STAR_AUX,
   BAR,
   END,
   SYM, // Also acts as RULE

@@ -6,7 +6,7 @@
 typedef uint64_t node_elem;
 typedef uint8_t node_kind;
 
-inline const uint8_t NODE_KINDS = 29;
+inline const uint8_t NODE_KINDS = 30;
 
 enum NodeKind {
   OUTPUT,
@@ -30,6 +30,7 @@ enum NodeKind {
   COMP_STAR_SYM,
   COMP_STAR_ANY,
   COMP_STAR_END,
+  COMP_STAR_AUX,
   BAR,
   END,
   SYM, // Also acts as RULE
@@ -50,7 +51,7 @@ void copyConstantData();
 struct NodeElement {
   union {
     struct {
-      uint8_t kind;
+      node_kind kind;
       uint16_t value;
       uint32_t lock;
     } header;

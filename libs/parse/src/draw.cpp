@@ -40,11 +40,15 @@ void drawNetwork(std::unique_ptr<grammar::Grammar> &grammar, bool as_tokens) {
       } else
         opts.labels[graph_node] = std::to_string(node->value);
     } else if (node->kind == COMP_SYM) {
-      grammar::Token token = nodeToToken(node->value);
       opts.labels[graph_node] = "○_";
-      opts.labels[graph_node] += token.kind == grammar::TERM
-                                     ? grammar->getTerminalString(token.id)
-                                     : grammar->getNonTerminalString(token.id);
+      if (as_tokens) {
+        grammar::Token token = nodeToToken(node->value);
+        opts.labels[graph_node] +=
+            token.kind == grammar::TERM
+                ? grammar->getTerminalString(token.id)
+                : grammar->getNonTerminalString(token.id);
+      } else
+        opts.labels[graph_node] += std::to_string(node->value);
     } else if (node->kind == DELTA) {
       opts.labels[graph_node] = node_strings[node->kind];
       opts.labels[graph_node] += std::to_string(node->value % 100);

@@ -1,0 +1,13 @@
+$j := e
+
+e := S 
+  | o
+
+o := L R
+   | L ms R
+
+ms := m
+   | m CM ms
+
+m := S CL e
+

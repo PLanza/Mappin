@@ -11,7 +11,7 @@ namespace cg = cooperative_groups;
 
 const uint8_t NODE_ARITIES_H[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0,
                                             3, 3, 2, 2, 2, 1, 2, 4, 4, 4,
-                                            3, 1, 0, 1, 1, 1, 2, 1, 3};
+                                            4, 3, 1, 0, 1, 1, 1, 2, 1, 3};
 
 __constant__ uint8_t NODE_ARITIES[NODE_KINDS];
 __constant__ Action actions_map[ACTIONS_MAP_SIZE];
@@ -264,9 +264,10 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
 
       // printf("%p: %d[%u] >-< %p: %d[%u] - %d[%d]\n", left, left->header.kind,
       //        left->header.value, right, right->header.kind,
-      //        right->header.value, threadIdx.x, globalQueue->count);
-      // printf("%d[%u] >-< %d[%u]\n", left->header.kind, left->header.value,
-      //        right->header.kind, right->header.value);
+      //        right->header.value, threadIdx.x + blockDim.x * blockIdx.x,
+      //        globalQueue->count);
+      printf("%d[%u] >-< %d[%u]\n", left->header.kind, left->header.value,
+             right->header.kind, right->header.value);
 
       // Load actions
       uint32_t index = actMapIndex(left->header.kind, right->header.kind);

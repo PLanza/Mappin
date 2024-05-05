@@ -16,6 +16,7 @@ set(SOURCE
     ${SOURCE_DIR}/grammar.cpp
     ${SOURCE_DIR}/llgrammar.cpp
     ${SOURCE_DIR}/lrgrammar.cpp
+    ${SOURCE_DIR}/lrtable.cpp
 )
 
 set(HEADERS_DIR
@@ -26,6 +27,7 @@ set(HEADERS
   ${HEADERS_DIR}/grammar.hpp
   ${HEADERS_DIR}/grammar/llgrammar.hpp
   ${HEADERS_DIR}/grammar/lrgrammar.hpp
+  ${HEADERS_DIR}/grammar/lrtable.hpp
 )
 
 find_package(Boost)
