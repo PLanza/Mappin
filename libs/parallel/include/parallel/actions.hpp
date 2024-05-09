@@ -24,7 +24,7 @@ typedef struct {
 } ConnectAction;
 
 struct Action {
-  uint8_t kind;
+  uint16_t kind;
   union {
     NewNodeAction new_node;
     ConnectAction connect;

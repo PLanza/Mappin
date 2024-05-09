@@ -6,7 +6,7 @@
 typedef uint64_t node_elem;
 typedef uint8_t node_kind;
 
-inline const uint8_t NODE_KINDS = 30;
+inline const uint8_t NODE_KINDS = 28;
 
 enum NodeKind {
   OUTPUT,
@@ -17,10 +17,8 @@ enum NodeKind {
   CONS,
   APPEND,
   FOLD,
-  IF,
+  IF, // Also CONT
   BOOL,
-  CONT,
-  CONT_AUX,
   SLASH,
   COMP,
   COMP_SYM,
@@ -38,7 +36,7 @@ enum NodeKind {
   STAR,
   END_STAR,
   STAR_DEL,
-  RULE_STAR,
+  RULE_STAR, // Also CONT_AUX
 };
 
 extern const uint8_t NODE_ARITIES_H[NODE_KINDS];
@@ -55,7 +53,7 @@ struct NodeElement {
       uint16_t value;
       uint32_t lock;
     } header;
-    NodeElement *port_node;
+    NodeElement *port_node = nullptr;
     uint64_t port_port;
   };
 };

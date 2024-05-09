@@ -14,7 +14,7 @@ struct Node;
 // A node's port that connecting to some node `node` at its port `port`
 struct Port {
   Node *node = nullptr;
-  size_t port;
+  size_t port = 0;
 };
 
 // Will need to extend to include a value field

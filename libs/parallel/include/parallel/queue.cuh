@@ -4,7 +4,9 @@
 #include "inet.hpp"
 
 #include <cassert>
+#include <cooperative_groups.h>
 #include <cstdint>
+#include <cstdio>
 
 template <uint32_t N> __device__ bool ensureEnqueue(int32_t *count) {
   int32_t num = *count;
@@ -26,6 +28,16 @@ template <uint32_t N> __device__ bool ensureDequeue(int32_t *count) {
       return true;
     num = atomicAdd(count, 1) + 1;
   }
+}
+
+namespace cg = cooperative_groups;
+
+inline __device__ int atomicAggInc(unsigned long long *ctr) {
+  auto g = cg::coalesced_threads();
+  int warp_res;
+  if (g.thread_rank() == 0)
+    warp_res = atomicAdd(ctr, g.size());
+  return g.shfl(warp_res, 0) + g.thread_rank();
 }
 
 // The global top-level queue
@@ -65,28 +77,30 @@ public:
   __host__ InteractionQueue()
       : head(0), tail(0), count(0), enqueing(0), dequeing(0) {}
 
-  __host__ InteractionQueue(Interaction *interactions, size_t size,
-                            size_t num_threads)
-      : tail(size), enqueing(0), dequeing(0) {
+  __host__ InteractionQueue(Interaction *interactions, size_t size)
+      : tail(size), head(0), count(size), enqueing(0), dequeing(0) {
     assert(size < N);
-    this->head = std::min(num_threads, size);
-    this->count = num_threads > size ? 0 : size - num_threads;
-
     memcpy(this->buffer, interactions, size * sizeof(Interaction));
   }
 
   __device__ inline bool isEmpty() { return this->head == this->tail; }
 
-  // TODO: separate into enqueue block and enqueue thread
-  __device__ void enqueue(int64_t *index, size_t size) {
+  __device__ bool enqueue(Interaction interaction) {
+    if (this->ensureEnqueue(static_cast<int32_t>(1))) {
+      unsigned long long index = atomicAggInc(&this->tail);
+      this->buffer[index] = interaction;
+
+      return true;
+    } else
+      return false;
+  }
+
+  __device__ void enqueueMany(int64_t *index, size_t size) {
     if (this->ensureEnqueue(static_cast<int32_t>(size))) {
-      if (size == 0) {
-        *index = 1;
-        return;
-      }
       // If full wait until dequing operations are done
-      while (this->count + this->dequeing >= N) {
-      }
+      while (this->count + this->dequeing >= N)
+        ;
+
       *index = atomicAdd(&this->tail, size) % N;
       atomicAdd(&this->enqueing, size);
     } else
@@ -98,11 +112,19 @@ public:
     atomicSub(&this->enqueing, size);
   }
 
-  __device__ void dequeue(int64_t *index, size_t size) {
-    if (size == 0) {
-      *index = 1;
-      return;
+  __device__ bool dequeue(Interaction *interaction) {
+    if (this->ensureDequeue(static_cast<int32_t>(1))) {
+
+      unsigned long long index = atomicAggInc(&this->head) % N;
+      *interaction = this->buffer[index];
+
+      return true;
+    } else {
+      return false;
     }
+  }
+
+  __device__ void dequeueMany(int64_t *index, size_t size) {
     if (this->ensureDequeue(static_cast<int32_t>(size))) {
       // If empty wait until enqueing operations are done
       while (this->count - this->enqueing < 0) {

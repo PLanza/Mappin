@@ -170,7 +170,7 @@ Node *createComposeNetwork(Node *xs, Node *ys) {
   connect(action_cons, 0, if_, 1);
   connect(action_cons, 2, copy_acc_ys, 1);
 
-  Node *cont = newNode(CONT, 0);
+  Node *cont = newNode(IF, 0);
   connect(cont, 2, if_, 0);
 
   Node *prod_x = newNode(GAMMA, 1);

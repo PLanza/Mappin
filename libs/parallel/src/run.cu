@@ -4,6 +4,7 @@
 #include "../include/parallel/network.hpp"
 #include "../include/parallel/queue.cuh"
 #include "../include/parallel/run.hpp"
+#include "../include/parallel/timing.cuh"
 #include "generate/grammar.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -41,10 +42,12 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   size_t interactions_size = host_network.getInteractions();
   size_t network_size = host_network.getNetworkSize();
   std::cout << "Network is made of " << network_size << " nodes." << std::endl;
+  std::cout << sizeof(actions_map_h) << std::endl;
 
   Interaction *interactions =
       (Interaction *)malloc(interactions_size * sizeof(Interaction));
 
+  // Allocate network
   NodeElement *network_d;
   checkCudaErrors(
       cudaMalloc((void **)&network_d, sizeof(NodeElement) * network_size));
@@ -53,8 +56,8 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   // Initialize global queue such that the first set of interactions can be
   // immediately loaded by the threads
   InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue_h =
-      new InteractionQueue<MAX_INTERACTIONS_SIZE>(
-          interactions, interactions_size, grid_dims.x * block_dims.x);
+      new InteractionQueue<MAX_INTERACTIONS_SIZE>(interactions,
+                                                  interactions_size);
   InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue_d;
   checkCudaErrors(cudaMalloc((void **)&globalQueue_d,
                              sizeof(InteractionQueue<MAX_INTERACTIONS_SIZE>)));
@@ -74,15 +77,36 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   checkCudaErrors(cudaMalloc((void **)&output_network_d,
                              sizeof(NodeElement) * network_size));
 
+  struct cudaFuncAttributes funcAttrib;
+  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, runINet));
+  printf("%s numRegs=%d\n", "runINet", funcAttrib.numRegs);
+
+  // Timing
+  Timing *timing = new Timing();
+  timing->StartCounter();
+
   // Invoke kernel
-  runINet<<<grid_dims, block_dims>>>(globalQueue_d, interactions_size,
-                                     global_done_d, output_network_d,
-                                     network_d + network_size - 5, network_d);
+  runINet<<<grid_dims, block_dims>>>(globalQueue_d, global_done_d, network_d);
+  cudaDeviceSynchronize();
+
+  std::cout << "Parsing took " << timing->GetCounter() << " ms" << std::endl;
+  timing->StartCounter();
+
+  copyNetwork<<<grid_dims, block_dims>>>(network_d + network_size - 5,
+                                         output_network_d, globalQueue_d);
+  std::cout << "Copying the network took " << timing->GetCounter() << " ms"
+            << std::endl;
+
+  uint64_t output_net_size;
+  checkCudaErrors(cudaMemcpy(&output_net_size, network_d + network_size - 5,
+                             sizeof(uint64_t), cudaMemcpyDeviceToHost));
+  std::cout << "Output network has " << output_net_size << " NodeElements"
+            << std::endl;
 
   NodeElement *output_network_h =
       (NodeElement *)malloc(sizeof(NodeElement) * network_size);
   checkCudaErrors(cudaMemcpy(output_network_h, output_network_d,
-                             sizeof(NodeElement) * network_size,
+                             sizeof(NodeElement) * output_net_size,
                              cudaMemcpyDeviceToHost));
 
   checkCudaErrors(cudaFree(globalQueue_d));

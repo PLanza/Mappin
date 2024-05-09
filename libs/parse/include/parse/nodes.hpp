@@ -9,7 +9,7 @@
 
 namespace inet {
 
-const int NODE_KINDS = 30;
+const int NODE_KINDS = 29;
 
 enum NodeKind {
   OUTPUT,
@@ -22,8 +22,6 @@ enum NodeKind {
   FOLD,
   IF,
   BOOL,
-  CONT,
-  CONT_AUX,
   SLASH,
   COMP,
   COMP_SYM,
@@ -41,16 +39,16 @@ enum NodeKind {
   STAR,
   END_STAR,
   STAR_DEL,
-  RULE_STAR,
+  RULE_STAR, // Also CONT_AUX
 };
 
 extern int node_arities[NODE_KINDS];
 extern std::string node_strings[NODE_KINDS];
 
-typedef struct {
-  Node *n1;
-  Node *n2;
-} Interaction;
+struct Interaction {
+  Node *n1 = nullptr;
+  Node *n2 = nullptr;
+};
 
 extern std::deque<Interaction> interactions;
 extern std::vector<Action> *actions_map;

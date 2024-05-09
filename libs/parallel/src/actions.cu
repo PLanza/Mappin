@@ -276,8 +276,8 @@ void initActions() {
                  createAction(false),
              });
 
-  addActions(CONT, SLASH,
-             {createAction(CONT_AUX, 0), createAction(BAR, 1),
+  addActions(IF, SLASH,
+             {createAction(RULE_STAR, 0), createAction(BAR, 1),
               createAction(VARS, 0, 2, ACTIVE_PAIR, 1, 0),
               createAction(VARS, 1, 0, NEW_NODES, 1, 0),
               createAction(VARS, 1, 1, NEW_NODES, 0, 1),
@@ -286,13 +286,13 @@ void initActions() {
               createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
               createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 0, 3),
               createAction(true)});
-  addActions(CONT_AUX, SLASH,
+  addActions(SLASH, RULE_STAR,
              {createAction(COMP, 0), createAction(BAR, 1),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 0, 2, NEW_NODES, 1, 1),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1),
-              createAction(VARS, 1, 1, NEW_NODES, 1, 0), createAction(true),
+              createAction(VARS, 1, 0, NEW_NODES, 0, 0),
+              createAction(VARS, 1, 1, NEW_NODES, 0, 2),
+              createAction(VARS, 1, 2, NEW_NODES, 1, 1),
+              createAction(VARS, 0, 0, NEW_NODES, 0, 1),
+              createAction(VARS, 0, 1, NEW_NODES, 1, 0), createAction(true),
               createAction(false)});
 
   addActions(COMP, SYM,

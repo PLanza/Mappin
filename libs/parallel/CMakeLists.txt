@@ -19,6 +19,7 @@ set(SOURCE
     ${SOURCE_DIR}/network.cu
     ${SOURCE_DIR}/run.cu
     ${SOURCE_DIR}/inet.cu
+    ${SOURCE_DIR}/timing.cu
 )
 
 set(HEADERS_DIR
@@ -31,6 +32,7 @@ set(HEADERS
   ${HEADERS_DIR}/kernel.cuh
   ${HEADERS_DIR}/network.hpp
   ${HEADERS_DIR}/queue.cuh
+  ${HEADERS_DIR}/timing.cuh
 )
 
 set(LIBRARIES

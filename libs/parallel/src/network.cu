@@ -197,7 +197,7 @@ uint64_t HostINetwork::createComposeNetwork(uint64_t xs, uint64_t ys) {
   this->connect(action_cons, 0, if_, 1);
   this->connect(action_cons, 2, copy_acc_ys, 1);
 
-  uint64_t cont = this->createNode(CONT, 0);
+  uint64_t cont = this->createNode(IF, 0);
   this->connect(cont, 2, if_, 0);
 
   uint64_t prod_x = this->createNode(GAMMA, 1);

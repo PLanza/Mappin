@@ -5,12 +5,12 @@
 
 namespace inet {
 
-int node_arities[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 3, 3, 2, 2, 2,
-                                1, 2, 4, 4, 4, 4, 3, 1, 0, 1, 1, 1, 2, 1, 3};
+int node_arities[NODE_KINDS] = {1, 0, 2, 2, 0, 2, 2, 3, 3, 0, 2, 2, 2, 1,
+                                2, 4, 4, 4, 4, 3, 1, 0, 1, 1, 1, 2, 1, 3};
 std::string node_strings[NODE_KINDS] = {
-    "out",  "DEL", "δ", "γ", "[]",  "::",  "@",   "fold", "if",   "bool",
-    "k",    "k\'", "/", "○", "○_X", "○_$", "○__", "○*",   "○*_X", "○*__",
-    "○*_$", "!○*", "-", "$", "X",   "_",   "*",   "*'",   "!*",   "R*",
+    "out", "DEL", "δ",   "γ",   "[]",  "::", "@",    "fold", "if",   "bool",
+    "/",   "○",   "○_X", "○_$", "○__", "○*", "○*_X", "○*__", "○*_$", "!○*",
+    "-",   "$",   "X",   "_",   "*",   "*'", "!*",   "R*",
 };
 
 std::deque<Interaction> interactions;
@@ -214,8 +214,8 @@ void init() {
                  Action(false),
              });
 
-  addActions(CONT, SLASH,
-             {Action(CONT_AUX, 0), Action(BAR, 1),
+  addActions(IF, SLASH,
+             {Action(RULE_STAR, 0), Action(BAR, 1),
               Action({VARS, 0, 2}, {ACTIVE_PAIR, 1, 0}),
               Action({VARS, 1, 0}, {NEW_NODES, 1, 0}),
               Action({VARS, 1, 1}, {NEW_NODES, 0, 1}),
@@ -224,12 +224,12 @@ void init() {
               Action({ACTIVE_PAIR, 1, 1}, {NEW_NODES, 1, 1}),
               Action({ACTIVE_PAIR, 1, 2}, {NEW_NODES, 0, 3}), Action(true)});
   addActions(
-      CONT_AUX, SLASH,
-      {Action(COMP, 0), Action(BAR, 1), Action({VARS, 0, 0}, {NEW_NODES, 0, 0}),
-       Action({VARS, 0, 1}, {NEW_NODES, 0, 2}),
-       Action({VARS, 0, 2}, {NEW_NODES, 1, 1}),
-       Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),
-       Action({VARS, 1, 1}, {NEW_NODES, 1, 0}), Action(true), Action(false)});
+      SLASH, RULE_STAR,
+      {Action(COMP, 0), Action(BAR, 1), Action({VARS, 1, 0}, {NEW_NODES, 0, 0}),
+       Action({VARS, 1, 1}, {NEW_NODES, 0, 2}),
+       Action({VARS, 1, 2}, {NEW_NODES, 1, 1}),
+       Action({VARS, 0, 0}, {NEW_NODES, 0, 1}),
+       Action({VARS, 0, 1}, {NEW_NODES, 1, 0}), Action(true), Action(false)});
 
   addActions(COMP, SYM,
              {Action(COMP_SYM, -2), Action({VARS, 1, 0}, {NEW_NODES, 0, 1}),

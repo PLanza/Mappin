@@ -64,7 +64,7 @@ Action::Action(Connect c1, Connect c2) : kind(CONNECT) {
 Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
 size_t total_interactions = 0;
-#define BLOCK_SIZE 2
+#define BLOCK_SIZE 32
 void interact() {
   // std::cout << interactions.size() << " active interactions" << std::endl;
 
@@ -72,25 +72,18 @@ void interact() {
   Interaction to_add[15 * BLOCK_SIZE];
   Port connections[15 * BLOCK_SIZE][2];
 
-  for (int i = 0; i < 15 * BLOCK_SIZE; i++) {
-    to_add[i] = {nullptr, nullptr};
-    connections[i][0] = {nullptr, 0};
-    connections[i][1] = {nullptr, 0};
-  }
-
-  bool both = true;
+  uint8_t active = 0;
   for (int i = 0; i < BLOCK_SIZE; i++) {
-    if (i >= interactions.size()) {
-      both = false;
+    if (interactions.empty())
       break;
-    } else
-      both = true;
+
     inters[i] = interactions.front();
     interactions.pop_front();
+    active++;
   }
 
   for (int i = 0; i < BLOCK_SIZE; i++) {
-    if (i == 1 && !both)
+    if (i >= active)
       continue;
 
     Node *left =
@@ -100,9 +93,9 @@ void interact() {
 
     total_interactions++;
 
-    // std::cout << left->kind << "[" << left->value << "]"
-    //           << " >-< " << right->kind << "[" << right->value << "]"
-    //           << std::endl;
+    std::cout << left->kind << "[" << left->value << "]"
+              << " >-< " << right->kind << "[" << right->value << "]"
+              << std::endl;
 
     std::vector<Action> &actions =
         getActions(left->kind, right->kind, left->value == right->value);
@@ -180,9 +173,9 @@ void interact() {
       }
       }
 
-      to_add[connects * 2 + i] = connect2(n1, p1, n2, p2);
-      connections[connects * 2 + i][0] = {n1, p1};
-      connections[connects * 2 + i][1] = {n2, p2};
+      to_add[connects * BLOCK_SIZE + i] = connect2(n1, p1, n2, p2);
+      connections[connects * BLOCK_SIZE + i][0] = {n1, p1};
+      connections[connects * BLOCK_SIZE + i][1] = {n2, p2};
 
       next_action++;
       connects++;
@@ -202,10 +195,9 @@ void interact() {
     if (connections[i][0].node == nullptr)
       continue;
     else {
-      // std::cout << connections[i][0].node->kind << "[" <<
-      // connections[i][0].port
-      //           << "] --- " << connections[i][1].node->kind << "["
-      //           << connections[i][1].port << "]" << std::endl;
+      std::cout << connections[i][0].node->kind << "[" << connections[i][0].port
+                << "] --- " << connections[i][1].node->kind << "["
+                << connections[i][1].port << "]" << std::endl;
     }
     if (to_add[i].n1 == nullptr)
       continue;
