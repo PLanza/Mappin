@@ -331,6 +331,48 @@ void LRGrammar::clearRepeatedActions(uint32_t term) {
   }
 }
 
+void LRGrammar::removeUselessActions() {
+
+  for (uint32_t r_term = 1; r_term < this->terms_size; r_term++) {
+    // std::cout << "Merging " << terminals[r_term] << std::endl;
+
+    std::vector<StackAction> &r_actions = this->stack_actions[r_term];
+    for (auto ra_iter = r_actions.begin(); ra_iter < r_actions.end();
+         ra_iter++) {
+      StackAction r_action = *ra_iter;
+      bool has_merged = false;
+
+      for (uint32_t l_term = 0; l_term < this->terms_size; l_term++) {
+        auto l_follow = this->parse_table->getFollowSet({TERM, l_term});
+        if (l_follow.find({TERM, r_term}) != l_follow.end()) {
+          std::vector<StackAction> &l_actions = this->stack_actions[l_term];
+          // std::cout << "\t and " << terminals[l_term] << std::endl;
+
+          for (StackAction l_action : l_actions) {
+            // this->printStackAction(l_action, false);
+            // std::cout << " o ";
+            // this->printStackAction(r_action, false);
+            // std::cout << std::endl;
+
+            if (mergeStackActions(l_action, r_action).has_value()) {
+              // std::cout << "Success" << std::endl;
+              has_merged = true;
+              break;
+            }
+          }
+        }
+        if (has_merged)
+          break;
+      }
+      if (!has_merged) {
+        r_actions.erase(ra_iter);
+        ra_iter--;
+      }
+      // std::cout << std::endl;
+    }
+  }
+}
+
 void LRGrammar::generateStackActions() {
   if (this->parse_table == nullptr) {
     std::cerr
@@ -340,8 +382,7 @@ void LRGrammar::generateStackActions() {
   }
   std::cout << "Generating stack actions for LR(0) Grammar" << std::endl;
 
-  this->stack_actions =
-      new std::vector<StackAction>[this->parse_table->state_count];
+  this->stack_actions = new std::vector<StackAction>[this->terms_size];
   this->stack_actions[0] = {StackAction{{}, {{SOME, 0}}, {}}};
 
   for (uint32_t term = 1; term < this->terms_size; term++) {
@@ -392,6 +433,7 @@ void LRGrammar::generateStackActions() {
     }
     this->getStackActionClosure(term);
   }
+  this->removeUselessActions();
 }
 
 void LRGrammar::traverseRules(inet::Node *cons,

@@ -190,6 +190,40 @@ LRParseTable::getTokenHeads(uint32_t non_term) {
   return this->token_heads[non_term];
 }
 
+std::unordered_set<Token, boost::hash<Token>>
+LRParseTable::getFollowSet(Token token) {
+  if (this->follow_sets.find(token) != this->follow_sets.end())
+    return this->follow_sets[token];
+
+  this->follow_sets[token] = {};
+  std::unordered_set<Token, boost::hash<Token>> &follow =
+      this->follow_sets[token];
+
+  if (token.kind == TERM && token.id == 0) {
+    follow = this->getTokenHeads(
+        std::get<0>(this->grammar->rules[this->grammar->start_rule]).id);
+    return this->follow_sets[token];
+  }
+
+  for (auto const &[head, rhs, _] : this->grammar->rules) {
+    for (uint32_t i = 0; i < rhs.size(); i++) {
+      if (rhs[i] == token) {
+        if (i == rhs.size() - 1) {
+          auto to_append = this->getFollowSet(head);
+          follow.merge(to_append);
+        } else if (rhs[i + 1].kind == TERM) {
+          follow.insert(rhs[i + 1]);
+        } else {
+          auto to_append = this->getTokenHeads(rhs[i + 1].id);
+          follow.merge(to_append);
+        }
+      }
+    }
+  }
+
+  return this->follow_sets[token];
+}
+
 std::vector<LTStackToken> LRParseTable::getOriginators(size_t state_idx,
                                                        Config config) {
   std::vector<LTStackToken> originators;
@@ -426,7 +460,7 @@ LRParseTable::LRParseTable(Grammar *grammar) : grammar(grammar) {
   this->states = {start_state};
 
   this->generateStates();
-  this->printStates();
+  // this->printStates();
 
   uint32_t terms = this->grammar->terms_size;
   uint32_t nonterms = this->grammar->nonterms_size;

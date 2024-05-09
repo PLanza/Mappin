@@ -31,6 +31,7 @@ private:
   void traverseRules(inet::Node *, std::deque<ParseTree *> &);
   void traverseRules(NodeElement *, std::deque<ParseTree *> &, NodeElement *,
                      NodeElement *);
+  void removeUselessActions();
 };
 } // namespace grammar
 

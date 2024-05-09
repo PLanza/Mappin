@@ -41,6 +41,7 @@ struct LTStackToken {
            this->state == other.state && this->config == other.config;
   }
 };
+
 class LRParseTable : public ParseTable {
 public:
   LRParseTable(Grammar *);
@@ -50,6 +51,8 @@ public:
 
   ParseAction getAction(uint32_t, uint32_t) const override;
   int getGoto(uint32_t, uint32_t) const;
+
+  std::unordered_set<Token, boost::hash<Token>> getFollowSet(Token);
 
   void printConfig(Config const &);
   void printStates();
@@ -67,6 +70,10 @@ private:
   // NT id -> {T id}
   std::unordered_map<uint32_t, std::unordered_set<Token, boost::hash<Token>>>
       token_heads;
+
+  std::unordered_map<Token, std::unordered_set<Token, boost::hash<Token>>,
+                     boost::hash<Token>>
+      follow_sets;
 
   void generateStates();
   uint32_t laneTracing(size_t, size_t);
