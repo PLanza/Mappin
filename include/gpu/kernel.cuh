@@ -11,10 +11,10 @@
 
 template <uint32_t N> class InteractionQueue;
 
-__global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *, bool *,
-                        NodeElement *);
-
 __global__ void copyNetwork(NodeElement *, NodeElement *,
                             InteractionQueue<MAX_INTERACTIONS_SIZE> *);
 
+__global__ void reduceInteractions(InteractionQueue<MAX_INTERACTIONS_SIZE> *,
+                                   NodeElement *, int32_t inters_count,
+                                   unsigned long long inters);
 #endif

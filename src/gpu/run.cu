@@ -25,6 +25,35 @@ void _checkCudaErrors(cudaError_t err, const char *file, const int line) {
 
 #define checkCudaErrors(err) _checkCudaErrors(err, __FILE__, __LINE__)
 
+void runInteractionNet(InteractionQueue<MAX_INTERACTIONS_SIZE> *global_queue_d,
+                       NodeElement *network_d) {
+
+  uint32_t total_inters = 0;
+  unsigned long long queue_head;
+  int32_t queue_count;
+  do {
+    checkCudaErrors(cudaMemcpy(&queue_head, &global_queue_d->head,
+                               sizeof(unsigned long long),
+                               cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(&queue_count, &global_queue_d->count,
+                               sizeof(int32_t), cudaMemcpyDeviceToHost));
+    checkCudaErrors(cudaMemcpy(&global_queue_d->head, &global_queue_d->tail,
+                               sizeof(unsigned long long),
+                               cudaMemcpyDeviceToDevice));
+    checkCudaErrors(cudaMemset(&global_queue_d->count, 0, sizeof(int32_t)));
+
+    uint32_t grid_dim_x = queue_count / BLOCK_DIM_X + 1;
+    total_inters += queue_count;
+
+    reduceInteractions<<<grid_dim_x, BLOCK_DIM_X>>>(global_queue_d, network_d,
+                                                    queue_count, queue_head);
+    cudaDeviceSynchronize();
+
+    std::cout << "Total interactions so far: " << total_inters << "\n\n";
+
+  } while (queue_count != 0);
+}
+
 void parse(std::unique_ptr<grammar::Grammar> grammar,
            std::string &input_string) {
   std::cout << "Parsing: " << input_string << std::endl;
@@ -79,46 +108,26 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
                              sizeof(NodeElement) * network_size));
 
   struct cudaFuncAttributes funcAttrib;
-  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, runINet));
+  checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, reduceInteractions));
   printf("%s numRegs=%d\n", "runINet", funcAttrib.numRegs);
 
   // Timing
   Timing *timing = new Timing();
   timing->StartCounter();
 
-  // while (true) {
-  //   int32_t gq_count_h;
-  //   checkCudaErrors(cudaMemcpy(&gq_count_h, &globalQueue_d->count,
-  //                              sizeof(int32_t), cudaMemcpyDeviceToHost));
-  //
-  //   if (gq_count_h == 0)
-  //     break;
-  //
-  //   uint32_t gq_head_h;
-  //   checkCudaErrors(cudaMemcpy(&gq_head_h, &globalQueue_d->head,
-  //                              sizeof(uint32_t), cudaMemcpyDeviceToHost));
-  //
-  //   // Clear the queue
-  //   checkCudaErrors(cudaMemcpy(&globalQueue_d->head, &globalQueue_d->tail,
-  //                              sizeof(uint32_t), cudaMemcpyDeviceToDevice));
-  //   checkCudaErrors(cudaMemset(&globalQueue_d->count, 0, sizeof(uint32_t)));
-  //
-  //   // Dynamically launch the kernel
-  //   uint32_t grid_dimx = gq_count_h / BLOCK_DIM_X + 1;
-  //   resolveINets<<<grid_dimx, block_dims>>>(globalQueue_d, gq_head_h,
-  //                                           gq_count_h, network_d);
-  //   cudaDeviceSynchronize();
-  // }
+  runInteractionNet(globalQueue_d, network_d);
 
   // Invoke kernel
-  runINet<<<grid_dims, block_dims>>>(globalQueue_d, global_done_d, network_d);
-  cudaDeviceSynchronize();
+  // runINet<<<grid_dims, block_dims>>>(globalQueue_d, global_done_d,
+  // network_d); cudaDeviceSynchronize();
 
   std::cout << "Parsing took " << timing->GetCounter() << " ms" << std::endl;
   timing->StartCounter();
 
-  copyNetwork<<<grid_dims, block_dims>>>(network_d + network_size - 5,
-                                         output_network_d, globalQueue_d);
+  uint32_t grid_dim_x = tokens.size() / BLOCK_DIM_X + 1;
+
+  copyNetwork<<<grid_dim_x, block_dims>>>(network_d + network_size - 5,
+                                          output_network_d, globalQueue_d);
   std::cout << "Copying the network took " << timing->GetCounter() << " ms"
             << std::endl;
 
