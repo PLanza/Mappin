@@ -12,10 +12,12 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} "-g -G")
 
+# set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-ftime-report")
+
 # Required for coding remotely on a computer without a GPU
-# set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 80)
+  set(CMAKE_CUDA_ARCHITECTURES 60)
 endif()
 
 set(PROJECT_NAME
@@ -30,27 +32,53 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(drag)
 
-set(SOURCE_DIR
-    src
-)
 set(SOURCE
-    ${SOURCE_DIR}/main.cpp
+    src/main.cpp
+    src/parse/draw.cpp
+    src/parse/inet.cpp
+    src/parse/nodes.cpp
+    src/parse/parser.cpp
+    src/generate/grammar_parser.cpp
+    src/generate/grammar.cpp
+    src/generate/llgrammar.cpp
+    src/generate/lrgrammar.cpp
+    src/generate/lrtable.cpp
+    src/generate/error.cpp
+    src/gpu/actions.cu
+    src/gpu/network.cu
+    src/gpu/run.cu
+    src/gpu/inet.cu
+    src/gpu/timing.cu
 )
 
-set(HEADERS_DIR
-  include
-)
-set(_HEADERS
+set(HEADERS
+  include/generate/util.hpp
+  include/generate/grammar_parser.hpp
+  include/generate/grammar.hpp
+  include/generate/grammar/llgrammar.hpp
+  include/generate/grammar/lrgrammar.hpp
+  include/generate/grammar/lrtable.hpp
+  include/parse/draw.hpp
+  include/parse/inet.hpp
+  include/parse/nodes.hpp
+  include/parse/parser.hpp
+  include/gpu/actions.hpp
+  include/gpu/inet.hpp
+  include/gpu/run.hpp
+  include/gpu/kernel.cuh
+  include/gpu/network.hpp
+  include/gpu/queue.cuh
+  include/gpu/timing.cuh
 )
 
-set(LIBRARIES_DIR
-  libs
-)
+set(BOOST_ROOT /usr/local/lib/boost_1_79_0)
+
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+
 set(LIBRARIES
-  util
-  generate
-  parse
-  parallel
+  drag
+  ${Boost_LIBRARIES}
 )
 
 project(${PROJECT_NAME} 
@@ -62,7 +90,4 @@ project(${PROJECT_NAME}
 # files in specified in HEADERS
 add_executable(${PROJECT_NAME} ${HEADERS} ${SOURCE})
 
-foreach(LIBRARY ${LIBRARIES})
-  add_subdirectory("${LIBRARIES_DIR}/${LIBRARY}")
-endforeach(LIBRARY)
 target_link_libraries(${PROJECT_NAME} ${LIBRARIES})

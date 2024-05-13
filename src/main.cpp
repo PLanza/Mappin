@@ -1,18 +1,18 @@
-#include <generate/grammar/llgrammar.hpp>
-#include <generate/grammar/lrgrammar.hpp>
-#include <generate/grammar_parser.hpp>
+#include "../include/generate/grammar/llgrammar.hpp"
+#include "../include/generate/grammar/lrgrammar.hpp"
+#include "../include/generate/grammar_parser.hpp"
+#include "../include/generate/util.hpp"
+#include "../include/gpu/run.hpp"
+#include "../include/parse/draw.hpp"
+#include "../include/parse/inet.hpp"
+#include "../include/parse/nodes.hpp"
+#include "../include/parse/parser.hpp"
 #include <iostream>
-#include <parallel/run.hpp>
-#include <parse/draw.hpp>
-#include <parse/inet.hpp>
-#include <parse/nodes.hpp>
-#include <parse/parser.hpp>
-#include <util/util.hpp>
 
 int main() {
   std::unique_ptr<grammar::Grammar> g;
   try {
-    GrammarParser<grammar::LLGrammar> g_parser("examples/test.grammar");
+    GrammarParser<grammar::LRGrammar> g_parser("examples/test3.grammar");
     g = g_parser.parseGrammar();
     g->printGrammar();
     g->makeParseTable();
@@ -27,8 +27,17 @@ int main() {
     return -1;
   }
 
-  std::string parseString = "B B B B B B B B B B B B X Z Z Z Z Z Z Z Z Z Z Z Z "
-                            "C C C C C C C C C C C C Y";
+  // std::string parseString = "B B B B B B B B B B B B X Z Z Z Z Z Z Z Z Z Z Z
+  // Z "
+  //                           "C C C C C C C C C C C C Y";
+  // std::string parseString =
+  //     "LCURL STRING COLON LCURL STRING COLON STRING COMMA STRING COLON LCURL
+  //     " "STRING COLON STRING COMMA STRING COLON LCURL STRING COLON LCURL
+  //     STRING " "COLON STRING COMMA STRING COLON STRING COMMA STRING COLON
+  //     STRING COMMA " "STRING COLON LCURL STRING COLON STRING COMMA STRING
+  //     COLON LSQUARE " "STRING COMMA STRING RSQUARE RCURL COMMA STRING COLON
+  //     STRING RCURL RCURL " "RCURL RCURL RCURL";
+  std::string parseString = "L S CL L R CM S CL L S CL S CM S CL L R R R";
 
   parse(std::move(g), parseString);
   // inet::init();
