@@ -85,6 +85,30 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   Timing *timing = new Timing();
   timing->StartCounter();
 
+  // while (true) {
+  //   int32_t gq_count_h;
+  //   checkCudaErrors(cudaMemcpy(&gq_count_h, &globalQueue_d->count,
+  //                              sizeof(int32_t), cudaMemcpyDeviceToHost));
+  //
+  //   if (gq_count_h == 0)
+  //     break;
+  //
+  //   uint32_t gq_head_h;
+  //   checkCudaErrors(cudaMemcpy(&gq_head_h, &globalQueue_d->head,
+  //                              sizeof(uint32_t), cudaMemcpyDeviceToHost));
+  //
+  //   // Clear the queue
+  //   checkCudaErrors(cudaMemcpy(&globalQueue_d->head, &globalQueue_d->tail,
+  //                              sizeof(uint32_t), cudaMemcpyDeviceToDevice));
+  //   checkCudaErrors(cudaMemset(&globalQueue_d->count, 0, sizeof(uint32_t)));
+  //
+  //   // Dynamically launch the kernel
+  //   uint32_t grid_dimx = gq_count_h / BLOCK_DIM_X + 1;
+  //   resolveINets<<<grid_dimx, block_dims>>>(globalQueue_d, gq_head_h,
+  //                                           gq_count_h, network_d);
+  //   cudaDeviceSynchronize();
+  // }
+
   // Invoke kernel
   runINet<<<grid_dims, block_dims>>>(globalQueue_d, global_done_d, network_d);
   cudaDeviceSynchronize();

@@ -16,4 +16,5 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *, bool *,
 
 __global__ void copyNetwork(NodeElement *, NodeElement *,
                             InteractionQueue<MAX_INTERACTIONS_SIZE> *);
+
 #endif

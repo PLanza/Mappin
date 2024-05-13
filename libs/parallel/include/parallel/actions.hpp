@@ -7,7 +7,7 @@
 #include "inet.hpp"
 
 enum ActionKind { NEW, CONNECT, FREE, NONE };
-enum Group { ACTIVE_PAIR, VARS, NEW_NODES };
+enum Group { ACTIVE_PAIR, NEW_NODES, VARS };
 
 typedef struct {
   node_kind kind;

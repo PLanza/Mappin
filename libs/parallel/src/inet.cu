@@ -28,15 +28,20 @@ __device__ inline uint32_t actMapIndex(uint8_t left, uint8_t right) {
 }
 
 __device__ inline void lock(NodeElement *node) {
+  if (!node)
+    return;
+  atomicCAS(&node[0].header.lock, 0u, threadIdx.x + (blockIdx.x << 12));
   if ((node[0].header.lock >> 12) == blockIdx.x)
     atomicMax(&node[0].header.lock, threadIdx.x + (blockIdx.x << 12));
-  else
-    atomicCAS(&node[0].header.lock, 0u, threadIdx.x + (blockIdx.x << 12));
 }
 __device__ inline void unlock(NodeElement *node) {
+  if (!node)
+    return;
   atomicCAS(&node[0].header.lock, threadIdx.x + (blockIdx.x << 12), 0u);
 }
 __device__ inline bool is_locked(NodeElement *node) {
+  if (!node)
+    return false;
   return node[0].header.lock == threadIdx.x + (blockIdx.x << 12);
 }
 
@@ -55,7 +60,7 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
     // Using this to keep track of where to next place a node
     output[0].port_port = 5;
   }
-  __shared__ int64_t queue_idx;
+  __shared__ int32_t queue_idx;
 
   // We assume the output network is a tree structure
   while (global_queue->count != 0) {
@@ -72,13 +77,13 @@ copyNetwork(NodeElement *output, NodeElement *dst_network,
     // deque all
     NodeElement *node;
     if (threadIdx.x < dequed_nodes) {
-      node = global_queue->buffer[queue_idx + threadIdx.x].n1;
-      // printf("%p: %d[%u] - %d\n", node, node[0].header.kind,
-      //        node[0].header.value, globalQueue->count);
+      Interaction *to_deque = global_queue->buffer + queue_idx + threadIdx.x;
 
-      if (threadIdx.x == 0) {
-        global_queue->ackDequeue(dequed_nodes);
-      }
+      // Wait until the interactions has been filled in
+      while (!to_deque->n1 || !to_deque->n2)
+        ;
+      node = to_deque->n1;
+      *to_deque = {nullptr, nullptr};
     }
     __syncthreads();
 
@@ -132,29 +137,30 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
     Action *actions;
     uint8_t next_action = 0;
 
-    NodeElement *active[2];
-    NodeElement *new_nodes[MAX_NEW_NODES];
+    NodeElement *local_nodes[2 + MAX_NEW_NODES];
 
     if (running) {
       bool switch_nodes =
           interaction.n1->header.kind > interaction.n2->header.kind;
       // If there is enough register space, consider loading into register
-      active[0] = switch_nodes ? interaction.n2 : interaction.n1;
-      active[1] = switch_nodes ? interaction.n1 : interaction.n2;
+      local_nodes[0] = switch_nodes ? interaction.n2 : interaction.n1;
+      local_nodes[1] = switch_nodes ? interaction.n1 : interaction.n2;
 
       printf("%d | %p: %d[%u] >-< %p: %d[%u]\n",
-             threadIdx.x + blockDim.x * blockIdx.x, active[0],
-             active[0]->header.kind, active[0]->header.value, active[1],
-             active[1]->header.kind, active[1]->header.value);
+             threadIdx.x + blockDim.x * blockIdx.x, local_nodes[0],
+             local_nodes[0]->header.kind, local_nodes[0]->header.value,
+             local_nodes[1], local_nodes[1]->header.kind,
+             local_nodes[1]->header.value);
 
-      // printf("%d[%u] >-< %d[%u]\n", left->header.kind, left->header.value,
-      //        right->header.kind, right->header.value);
+      // printf("%d[%u] >-< %d[%u]\n", active[0]->header.kind,
+      //        active[0]->header.value, active[1]->header.kind,
+      //        active[1]->header.value);
 
       // Load actions
       uint32_t index =
-          actMapIndex(active[0]->header.kind, active[1]->header.kind);
-      index +=
-          MAX_ACTIONS * (active[0]->header.value == active[1]->header.value);
+          actMapIndex(local_nodes[0]->header.kind, local_nodes[1]->header.kind);
+      index += MAX_ACTIONS *
+               (local_nodes[0]->header.value == local_nodes[1]->header.value);
       actions = actions_map + index;
 
       // TODO: Test doing it all in a single loop
@@ -162,23 +168,21 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
         NewNodeAction nna = actions[next_action].action.new_node;
         uint32_t value;
         if (nna.value == -1)
-          value = active[0]->header.value;
+          value = local_nodes[0]->header.value;
         else if (nna.value == -2)
-          value = active[1]->header.value;
+          value = local_nodes[1]->header.value;
         else if (nna.value == -3)
-          value = reinterpret_cast<std::uintptr_t>(active[0]);
+          value = reinterpret_cast<std::uintptr_t>(local_nodes[0]);
         else
           value = nna.value;
 
-        new_nodes[next_action] = (NodeElement *)malloc(
+        local_nodes[2 + next_action] = (NodeElement *)malloc(
             sizeof(NodeElement) * (1 + 2 * (NODE_ARITIES[nna.kind] + 1)));
-        // printf("%d | new: %p\n", threadIdx.x + blockIdx.x * blockDim.x,
-        //        new_nodes[next_action]);
-        // if (new_nodes[next_action] == (NodeElement *)0x200000000)
-        //   printf("HELP\n");
+        // printf("%d | new: %p = %d\n", threadIdx.x + blockIdx.x * blockDim.x,
+        //        local_nodes[2 + next_action], nna.kind);
 
-        // Should do this in one memory operation
-        new_nodes[next_action][0] = {
+        // Want to do this in one memory operation
+        local_nodes[2 + next_action][0] = {
             {nna.kind, static_cast<uint16_t>(value), 0}};
 
         next_action++;
@@ -202,38 +206,83 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
 
       if (valid_connect) {
         ca = actions[next_action].action.connect;
-        p1 = connect_p(ca.c1), p2 = connect_p(ca.c2);
-        n1 = active[connect_n(ca.c1)], n2 = active[connect_n(ca.c2)];
+        printf("%d | %d --- %d\n", threadIdx.x + blockIdx.x * blockDim.x, ca.c1,
+               ca.c2);
 
+        // Acquire locks in-order to not deadlock
         if (connect_g(ca.c1) == VARS) {
-          p1 = n1[1 + 2 * (connect_p(ca.c1) + 1) + 1].port_port;
-          n1 = n1[1 + 2 * (connect_p(ca.c1) + 1)].port_node;
-        } else if (connect_g(ca.c1) == NEW_NODES) {
-          n1 = new_nodes[connect_n(ca.c1)];
+          if (local_nodes[connect_n(ca.c1)] <
+              local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 3]
+                  .port_node) {
+            lock(local_nodes[connect_n(ca.c1)]);
+            if (is_locked(local_nodes[connect_n(ca.c1)]))
+              lock(local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 3]
+                       .port_node);
+          } else {
+            lock(local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 3]
+                     .port_node);
+            if (is_locked(
+                    local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 3]
+                        .port_node))
+              lock(local_nodes[connect_n(ca.c1)]);
+          }
+          n1 =
+              local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 3].port_node;
+          p1 =
+              local_nodes[connect_n(ca.c1)][2 * connect_p(ca.c1) + 4].port_port;
+        } else {
+          lock(local_nodes[connect_n(ca.c1)]);
+          n1 = local_nodes[connect_n(ca.c1) + 2 * connect_g(ca.c1)];
+          p1 = connect_p(ca.c1);
         }
 
         if (connect_g(ca.c2) == VARS) {
-          p2 = n2[1 + 2 * (connect_p(ca.c2) + 1) + 1].port_port;
-          n2 = n2[1 + 2 * (connect_p(ca.c2) + 1)].port_node;
-        } else if (connect_g(ca.c2) == NEW_NODES) {
-          n2 = new_nodes[connect_n(ca.c2)];
+          if (local_nodes[connect_n(ca.c2)] <
+              local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 3]
+                  .port_node) {
+            lock(local_nodes[connect_n(ca.c2)]);
+            if (is_locked(local_nodes[connect_n(ca.c2)]))
+              lock(local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 3]
+                       .port_node);
+          } else {
+            lock(local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 3]
+                     .port_node);
+            if (is_locked(
+                    local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 3]
+                        .port_node))
+              lock(local_nodes[connect_n(ca.c2)]);
+          }
+          n2 =
+              local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 3].port_node;
+          p2 =
+              local_nodes[connect_n(ca.c2)][2 * connect_p(ca.c2) + 4].port_port;
+        } else {
+          lock(local_nodes[connect_n(ca.c2)]);
+          n2 = local_nodes[connect_n(ca.c2) + 2 * connect_g(ca.c2)];
+          p2 = connect_p(ca.c2);
         }
-
-        lock(active[0]);
-        lock(active[1]);
-        lock(n1);
-        lock(n2);
+        printf("%d | %p: %d >-< %p: %d \n\t %p: %d --- %p: %d\n",
+               threadIdx.x + blockIdx.x * blockDim.x,
+               local_nodes[connect_n(ca.c1)],
+               local_nodes[connect_n(ca.c1)]->header.lock,
+               local_nodes[connect_n(ca.c2)],
+               local_nodes[connect_n(ca.c2)]->header.lock, n1, n1->header.lock,
+               n2, n2->header.lock);
       }
       __syncthreads();
 
       if (valid_connect) {
-        if (is_locked(active[0]) && is_locked(active[1]) && is_locked(n1) &&
-            is_locked(n2)) {
+        if (is_locked(local_nodes[connect_n(ca.c1)]) &&
+            is_locked(local_nodes[connect_n(ca.c2)]) &&
+            (connect_g(ca.c1) != VARS || is_locked(n1)) &&
+            (connect_g(ca.c2) != VARS || is_locked(n2))) {
           // printf("%d | %p: %d[%lu] --- %d[%lu]: %p\n",
-          //        threadIdx.x + blockIdx.x * blockDim.x, n1,
-          //        n1->header.kind, p1, n2->header.kind, p2, n2);
-
+          //        threadIdx.x + blockIdx.x * blockDim.x, n1, n1->header.kind,
+          //        p1, n2->header.kind, p2, n2);
           // Make connection
+          printf("%d | %p: %d --- %p: %d\n",
+                 threadIdx.x + blockIdx.x * blockDim.x, n1, n1->header.lock, n2,
+                 n2->header.lock);
           ((Port *)(n1 + 1))[p1] = {n2, p2};
           ((Port *)(n2 + 1))[p2] = {n1, p1};
 
@@ -245,11 +294,10 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
 
           next_action++;
         }
-
-        unlock(active[0]);
-        unlock(active[1]);
         unlock(n1);
         unlock(n2);
+        unlock(local_nodes[connect_n(ca.c1)]);
+        unlock(local_nodes[connect_n(ca.c2)]);
       }
     }
 
@@ -259,26 +307,33 @@ __global__ void runINet(InteractionQueue<MAX_INTERACTIONS_SIZE> *globalQueue,
         ;
     }
 
+    __syncthreads();
+
     // Perform Free actions
     if (running) {
       while (next_action < MAX_ACTIONS && actions[next_action].kind == FREE) {
         if (actions[next_action].action.free) {
           // printf("%d | freeing: %p\n", threadIdx.x + blockIdx.x * blockDim.x,
-          //        active[0]);
-          if (active[0] < network)
-            free(active[0]);
+          //        local_nodes[0]);
+          if (local_nodes[0] < network) {
+            // Threads in block cannot free the same node so no lock contention
+            while (!is_locked(local_nodes[0]))
+              lock(local_nodes[0]);
+            free(local_nodes[0]);
+          }
         } else {
           // printf("%d | freeing: %p\n", threadIdx.x + blockIdx.x * blockDim.x,
-          //        active[1]);
-          if (active[1] < network)
-            free(active[1]);
+          //        local_nodes[1]);
+          if (local_nodes[1] < network) {
+            // Threads in block cannot free the same node so no lock contention
+            while (!is_locked(local_nodes[1]))
+              lock(local_nodes[1]);
+            free(local_nodes[1]);
+          }
         }
 
         next_action++;
       }
     }
-
-    // if (syncthreads_and(globalQueue->isEmpty()))
-    //   break;
   }
 }
