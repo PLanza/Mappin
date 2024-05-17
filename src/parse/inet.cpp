@@ -65,6 +65,7 @@ Action::Action(bool node) : kind(FREE) { this->action.free = node; }
 
 size_t total_interactions = 0;
 #define BLOCK_SIZE 32
+
 void interact() {
   // std::cout << interactions.size() << " active interactions" << std::endl;
 

@@ -45,7 +45,7 @@ set(SOURCE
     src/generate/lrtable.cpp
     src/generate/error.cpp
     src/gpu/actions.cu
-    src/gpu/network.cu
+    src/gpu/network.cpp
     src/gpu/run.cu
     src/gpu/inet.cu
     src/gpu/timing.cu
@@ -71,7 +71,7 @@ set(HEADERS
   include/gpu/timing.cuh
 )
 
-set(BOOST_ROOT /usr/local/lib/boost_1_79_0)
+set(BOOST_ROOT /usr/lib/x86_64-linux-gnu/cmake)
 
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})

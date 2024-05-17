@@ -1,12 +1,11 @@
 #ifndef __MAPPIN_PARALLEL_QUEUE__
 #define __MAPPIN_PARALLEL_QUEUE__
 
-#include "inet.hpp"
-
 #include <cassert>
 #include <cooperative_groups.h>
 #include <cstdint>
 #include <cstdio>
+#include <vector>
 
 template <uint32_t N> __device__ bool ensureEnqueue(int32_t *count) {
   int32_t num = *count;
@@ -49,7 +48,7 @@ inline __device__ int atomicAggInc(int32_t *ctr) {
 }
 
 // The global top-level queue
-template <uint32_t N> class InteractionQueue {
+template <class T, uint32_t N> class ParallelQueue {
 
   __device__ bool ensureEnqueue(int32_t size) {
     int32_t num = this->count;
@@ -76,25 +75,23 @@ template <uint32_t N> class InteractionQueue {
   }
 
 public:
-  Interaction buffer[N];
+  T buffer[N];
   unsigned long long head;
   unsigned long long tail;
   int32_t count;
 
-  __host__ __device__ InteractionQueue() : head(0), tail(0), count(0) {}
-
-  __host__ InteractionQueue(Interaction *interactions, size_t size)
-      : tail(size), head(0), count(size) {
-    assert(size < N);
-    memcpy(this->buffer, interactions, size * sizeof(Interaction));
+  __host__ ParallelQueue(std::vector<T> init_q)
+      : tail(init_q.size()), head(0), count(init_q.size()) {
+    assert(init_q.size() < N);
+    memcpy(this->buffer, init_q.data(), init_q.size() * sizeof(T));
   }
 
   __device__ inline bool isEmpty() { return this->head == this->tail; }
 
-  __device__ bool enqueue(Interaction interaction) {
+  __device__ bool enqueue(T item) {
     if (this->ensureEnqueue(1)) {
 
-      this->buffer[atomicAggInc(&this->tail) % N] = interaction;
+      this->buffer[atomicAggInc(&this->tail) % N] = item;
       return true;
     } else
       return false;
@@ -108,17 +105,10 @@ public:
       *index = -1;
   }
 
-  __device__ bool dequeue(Interaction *interaction) {
+  __device__ bool dequeue(T *item) {
     if (this->ensureDequeue(1)) {
 
-      Interaction *to_deque = this->buffer + atomicAdd(&this->head, 1) % N;
-
-      // Wait until the interactions has been filled in
-      while (!to_deque->n1 || !to_deque->n2)
-        ;
-      *interaction = *to_deque;
-      *to_deque = {nullptr, nullptr};
-
+      *item = this->buffer[atomicAggInc(&this->head) % N];
       return true;
     } else
       return false;
@@ -131,5 +121,24 @@ public:
       *index = -1;
   }
 };
+
+template <class T, uint32_t N>
+ParallelQueue<T, N> *newParallelQueue(std::vector<T> init_q) {
+  ParallelQueue<T, N> *queue_d;
+  cudaMalloc((void **)&queue_d, sizeof(ParallelQueue<T, N>));
+  // Copy data
+  cudaMemcpy(queue_d->buffer, init_q.data(), init_q.size() * sizeof(T),
+             cudaMemcpyHostToDevice);
+
+  // Set indices
+  unsigned long long size = init_q.size();
+  cudaMemcpy(&queue_d->tail, &size, sizeof(unsigned long long),
+             cudaMemcpyHostToDevice);
+  cudaMemset(&queue_d->head, 0, sizeof(unsigned long long));
+  cudaMemcpy(&queue_d->count, &size, sizeof(unsigned long long),
+             cudaMemcpyHostToDevice);
+
+  return queue_d;
+}
 
 #endif

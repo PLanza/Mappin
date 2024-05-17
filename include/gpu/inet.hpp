@@ -51,21 +51,21 @@ struct NodeElement {
     struct {
       node_kind kind;
       uint16_t value;
-      uint32_t lock;
     } header;
-    NodeElement *port_node = nullptr;
-    uint64_t port_port;
+    uint32_t flags;
+    uint32_t port_node;
+    uint32_t port_port;
   };
 };
 
 struct Port {
-  NodeElement *node;
-  uint64_t port;
+  uint32_t node;
+  uint32_t port;
 };
 
 struct Interaction {
-  NodeElement *n1;
-  NodeElement *n2;
+  uint32_t n1;
+  uint32_t n2;
 };
 
 #endif

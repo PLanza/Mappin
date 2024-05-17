@@ -278,20 +278,17 @@ void LLGrammar::traverseRules(inet::Node *cons,
   }
 }
 
-#define translate(ptr) (host + (ptr - device))
-
-ParseTree *LLGrammar::getParse(NodeElement *product, NodeElement *host,
-                               NodeElement *device) {
+ParseTree *LLGrammar::getParse(NodeElement *product, NodeElement *host) {
   // For each parse, check the stack action for incomplete parses
-  NodeElement *stack_action = translate(product[5].port_node);
-  if (translate(stack_action[3].port_node)[0].header.kind != inet::END &&
-      translate(stack_action[5].port_node)[0].header.kind != inet::END)
+  NodeElement *stack_action = host + product[6].port_node;
+  if ((host + stack_action[4].port_node)->header.kind != inet::END &&
+      (host + stack_action[6].port_node)->header.kind != inet::END)
     return nullptr;
 
   // If valid then traverse the reduction rules and print parse
-  NodeElement *cons = translate(product[3].port_node);
+  NodeElement *cons = host + product[4].port_node;
   std::deque<ParseTree *> stack;
-  this->traverseRules(cons, stack, host, device);
+  this->traverseRules(cons, stack, host);
 
   delete stack.back();
   stack.pop_back();
@@ -305,12 +302,12 @@ ParseTree *LLGrammar::getParse(NodeElement *product, NodeElement *host,
 }
 
 void LLGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
-                              NodeElement *host, NodeElement *device) {
+                              NodeElement *host) {
   if (cons[0].header.kind == CONS) {
-    this->traverseRules(translate(cons[5].port_node), stack, host, device);
-    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    this->traverseRules((host + cons[6].port_node), stack, host);
+    this->traverseRules((host + cons[4].port_node), stack, host);
   } else if (cons[0].header.kind == SYM) {
-    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    this->traverseRules((host + cons[4].port_node), stack, host);
     auto const &[head, rhs, _] = this->getRule(cons[0].header.value);
     ParseTree *tree = new ParseTree(NON_TERM, cons[0].header.value, rhs.size());
 

@@ -480,14 +480,13 @@ ParseTree *LRGrammar::getParse(inet::Node *product) {
   return tree;
 }
 
-#define translate(ptr) (host + (ptr - device))
 void LRGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
-                              NodeElement *host, NodeElement *device) {
+                              NodeElement *host) {
   if (cons[0].header.kind == inet::CONS) {
-    this->traverseRules(translate(cons[3].port_node), stack, host, device);
-    this->traverseRules(translate(cons[5].port_node), stack, host, device);
+    this->traverseRules((host + cons[4].port_node), stack, host);
+    this->traverseRules((host + cons[6].port_node), stack, host);
   } else if (cons[0].header.kind == inet::SYM) {
-    this->traverseRules(translate(cons[3].port_node), stack, host, device);
+    this->traverseRules((host + cons[4].port_node), stack, host);
     auto const &[head, rhs, _] = this->getRule(cons[0].header.value);
     ParseTree *tree = new ParseTree(NON_TERM, cons[0].header.value, rhs.size());
 
@@ -501,18 +500,17 @@ void LRGrammar::traverseRules(NodeElement *cons, std::deque<ParseTree *> &stack,
   }
 }
 
-ParseTree *LRGrammar::getParse(NodeElement *product, NodeElement *host,
-                               NodeElement *device) {
+ParseTree *LRGrammar::getParse(NodeElement *product, NodeElement *host) {
   // For each parse, check the stack action for incomplete parses
-  NodeElement *stack_action = translate(product[5].port_node);
-  if (translate(stack_action[3].port_node)[0].header.kind != inet::END &&
-      translate(stack_action[5].port_node)[0].header.kind != inet::END)
+  NodeElement *stack_action = (host + product[6].port_node);
+  if ((host + stack_action[4].port_node)[0].header.kind != inet::END &&
+      (host + stack_action[6].port_node)[0].header.kind != inet::END)
     return nullptr;
 
   // If valid then traverse the reduction rules and print parse
-  NodeElement *cons = translate(product[3].port_node);
+  NodeElement *cons = (host + product[4].port_node);
   std::deque<ParseTree *> stack;
-  this->traverseRules(cons, stack, host, device);
+  this->traverseRules(cons, stack, host);
 
   auto const &[head, rhs, _] = this->getRule(this->start_rule);
   ParseTree *tree = new ParseTree(NON_TERM, this->start_rule, rhs.size());

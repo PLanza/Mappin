@@ -115,7 +115,7 @@ public:
   std::vector<Token> stringToTokens(std::string);
 
   std::vector<ParseTree *> getParses(inet::Node *);
-  std::vector<ParseTree *> getParses(NodeElement *, NodeElement *);
+  std::vector<ParseTree *> getParses(NodeElement *);
 
   void printGrammar();
   void printStackState(StackState, bool);
@@ -151,7 +151,7 @@ protected:
 
   virtual ParseTable *getParseTable() = 0;
   virtual ParseTree *getParse(inet::Node *) = 0;
-  virtual ParseTree *getParse(NodeElement *, NodeElement *, NodeElement *) = 0;
+  virtual ParseTree *getParse(NodeElement *, NodeElement *) = 0;
 
   void printRule(uint32_t, bool);
   friend class LRParseTable;

@@ -23,8 +23,6 @@ Action createAction(Group g1, uint8_t n1, uint8_t p1, Group g2, uint8_t n2,
       {.connect = {createConnect(g1, n1, p1), createConnect(g2, n2, p2)}}};
 }
 
-Action createAction(bool node) { return Action{FREE, {.free = node}}; }
-
 // Triangular matrix
 Action actions_map_h[ACTIONS_MAP_SIZE]; // ~32Kb
 
@@ -38,7 +36,6 @@ size_t actMapIndex(NodeKind n1, NodeKind n2) {
 
 bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
   bool seen_connect = false;
-  bool seen_free = false;
   bool seen_none = false;
 
   NodeKind active_pair[2] = {n1, n2};
@@ -47,14 +44,14 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
   for (Action const &action : actions) {
     switch (action.kind) {
     case NEW: {
-      if (seen_connect || seen_free || seen_none)
+      if (seen_connect || seen_none)
         return false;
 
       new_arities.push_back(NODE_ARITIES_H[action.action.new_node.kind]);
       break;
     }
     case CONNECT: {
-      if (seen_free || seen_none)
+      if (seen_none)
         return false;
       seen_connect = true;
       auto &[c1, c2] = action.action.connect;
@@ -90,12 +87,6 @@ bool checkActions(NodeKind n1, NodeKind n2, std::vector<Action> actions) {
         break;
       }
       }
-      break;
-    }
-    case FREE: {
-      seen_free = true;
-      if (seen_none)
-        return false;
       break;
     }
     case NONE: {
@@ -137,33 +128,12 @@ void addActions(NodeKind n1, NodeKind n2, bool matches,
   }
 }
 
-void addDeleteActions() {
-  for (uint8_t kind = DELETE; kind < NODE_KINDS; kind++) {
-    std::vector<Action> actions;
-
-    for (int i = 1; i < NODE_ARITIES_H[kind]; i++)
-      actions.push_back(createAction(DELETE, 0));
-
-    if (NODE_ARITIES_H[kind] > 0) {
-      actions.push_back(createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0));
-    }
-
-    for (size_t i = 1; i < NODE_ARITIES_H[kind]; i++)
-      actions.push_back(createAction(VARS, 1, i, NEW_NODES, i - 1, 0));
-
-    actions.push_back(createAction(false));
-    if (NODE_ARITIES_H[kind] == 0)
-      actions.push_back(createAction(true));
-
-    addActions(DELETE, (NodeKind)kind, actions);
-  }
-}
-
 void addDeltaActions() {
   addActions(DELTA, DELTA, true,
-             {createAction(VARS, 0, 0, VARS, 1, 0),
-              createAction(VARS, 0, 1, VARS, 1, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(VARS, 0, 0, VARS, 1, 0),
+                 createAction(VARS, 0, 1, VARS, 1, 1),
+             });
 
   addActions(DELTA, DELTA, false,
              {
@@ -190,7 +160,6 @@ void addDeltaActions() {
     actions.push_back(createAction(VARS, 0, 1, NEW_NODES, 0, 0));
 
     if (NODE_ARITIES_H[kind] == 0) {
-      actions.push_back(createAction(true));
       addActions(DELTA, (NodeKind)kind, actions);
       continue;
     }
@@ -215,20 +184,15 @@ void initActions() {
   for (int i = 0; i < NODE_KINDS * NODE_KINDS * 2 * MAX_ACTIONS; i++)
     actions_map_h[i] = {NONE, {false}};
   addDeltaActions();
-  addDeleteActions();
   addActions(GAMMA, GAMMA, true,
              {
                  createAction(VARS, 0, 0, VARS, 1, 0),
                  createAction(VARS, 0, 1, VARS, 1, 1),
-                 createAction(true),
-                 createAction(false),
              });
 
   addActions(NIL, APPEND,
              {
                  createAction(VARS, 1, 0, VARS, 1, 1),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(CONS, APPEND,
              {createAction(VARS, 0, 1, ACTIVE_PAIR, 1, 0),
@@ -240,8 +204,6 @@ void initActions() {
                  createAction(DELETE, 0),
                  createAction(VARS, 1, 0, VARS, 1, 2),
                  createAction(VARS, 1, 1, NEW_NODES, 0, 0),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(CONS, FOLD,
              {
@@ -256,89 +218,98 @@ void initActions() {
                  createAction(ACTIVE_PAIR, 1, 3, NEW_NODES, 2, 1),
                  createAction(NEW_NODES, 0, 1, NEW_NODES, 1, 0),
                  createAction(NEW_NODES, 1, 2, NEW_NODES, 2, 0),
-                 createAction(true),
              });
 
   addActions(IF, BOOL, true,
              {
-                 createAction(DELETE, 0), // Not sure about this delete
+                 createAction(DELETE, 0),
                  createAction(VARS, 0, 0, VARS, 0, 2),
                  createAction(VARS, 0, 1, NEW_NODES, 0, 0),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(IF, BOOL, false,
              {
-                 createAction(DELETE, 0), // Not sure about this delete
+                 createAction(DELETE, 0),
                  createAction(VARS, 0, 1, VARS, 0, 2),
                  createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-                 createAction(true),
-                 createAction(false),
              });
 
   addActions(IF, SLASH,
-             {createAction(RULE_STAR, 0), createAction(BAR, 1),
-              createAction(VARS, 0, 2, ACTIVE_PAIR, 1, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 1, 0),
-              createAction(VARS, 1, 1, NEW_NODES, 0, 1),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
-              createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 0, 3),
-              createAction(true)});
+             {
+                 createAction(RULE_STAR, 0),
+                 createAction(BAR, 1),
+                 createAction(VARS, 0, 2, ACTIVE_PAIR, 1, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 1, 0),
+                 createAction(VARS, 1, 1, NEW_NODES, 0, 1),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
+                 createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 0, 3),
+             });
   addActions(SLASH, RULE_STAR,
              {createAction(COMP, 0), createAction(BAR, 1),
               createAction(VARS, 1, 0, NEW_NODES, 0, 0),
               createAction(VARS, 1, 1, NEW_NODES, 0, 2),
               createAction(VARS, 1, 2, NEW_NODES, 1, 1),
               createAction(VARS, 0, 0, NEW_NODES, 0, 1),
-              createAction(VARS, 0, 1, NEW_NODES, 1, 0), createAction(true),
-              createAction(false)});
+              createAction(VARS, 0, 1, NEW_NODES, 1, 0)});
 
   addActions(COMP, SYM,
-             {createAction(COMP_SYM, -2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP_SYM, -2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+             });
   addActions(COMP, ANY,
-             {createAction(COMP_ANY, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP_ANY, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+             });
   addActions(COMP, BAR,
-             {createAction(BOOL, 1),
-              createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0), createAction(true)});
+             {
+                 createAction(BOOL, 1),
+                 createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+             });
   addActions(COMP, END,
-             {createAction(COMP_END, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP_END, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 1),
+             });
 
   addActions(COMP_SYM, SYM, true,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_SYM, SYM, false,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 2, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 2, 0),
+             });
   addActions(COMP_SYM, ANY,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_SYM, END,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+             });
   addActions(COMP_SYM, BAR,
              {
                  createAction(BOOL, 1),
@@ -347,43 +318,57 @@ void initActions() {
                  createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
-                 createAction(true),
+
              });
 
   addActions(COMP_END, SYM,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 1, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 1, 0),
+             });
   addActions(COMP_END, ANY,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 1, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 1, 0),
+             });
   addActions(COMP_END, BAR,
-             {createAction(BOOL, 1), createAction(END, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 1, 0, NEW_NODES, 1, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 1),
+                 createAction(END, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 1, 0, NEW_NODES, 1, 0),
+             });
   addActions(COMP_END, END,
-             {createAction(BOOL, 1), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(true), createAction(false)});
+             {
+                 createAction(BOOL, 1),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+             });
 
   addActions(COMP_ANY, SYM,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_ANY, ANY,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_ANY, END,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+             });
   addActions(COMP_ANY, BAR,
              {
                  createAction(BOOL, 1),
@@ -392,7 +377,6 @@ void initActions() {
                  createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
-                 createAction(true),
              });
 
   addActions(BAR, BAR, true,
@@ -416,13 +400,10 @@ void initActions() {
   addActions(BAR, END,
              {
                  createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
-                 createAction(true),
              });
   addActions(BAR, BAR, false,
              {
                  createAction(VARS, 0, 0, VARS, 1, 0),
-                 createAction(true),
-                 createAction(false),
              });
 
   addActions(BAR, STAR,
@@ -438,32 +419,32 @@ void initActions() {
                  createAction(ACTIVE_PAIR, 0, 1, ACTIVE_PAIR, 1, 1),
              });
 
-  addActions(END, END,
-             {
-                 createAction(true),
-                 createAction(false),
-             });
   addActions(END, SYM,
              {
                  createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0),
-                 createAction(false),
              });
 
   addActions(COMP_ANY, SYM,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_ANY, ANY,
-             {createAction(COMP, 0), createAction(VARS, 0, 0, NEW_NODES, 0, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 2),
-              createAction(VARS, 1, 0, NEW_NODES, 0, 1), createAction(true),
-              createAction(false)});
+             {
+                 createAction(COMP, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 0, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 2),
+                 createAction(VARS, 1, 0, NEW_NODES, 0, 1),
+             });
   addActions(COMP_ANY, END,
-             {createAction(BOOL, 0), createAction(DELETE, 0),
-              createAction(VARS, 0, 0, NEW_NODES, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(BOOL, 0),
+                 createAction(DELETE, 0),
+                 createAction(VARS, 0, 0, NEW_NODES, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+             });
   addActions(COMP_ANY, BAR,
              {
                  createAction(BOOL, 1),
@@ -472,7 +453,6 @@ void initActions() {
                  createAction(VARS, 0, 1, NEW_NODES, 0, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 1, 1),
-                 createAction(true),
              });
 
   addActions(COMP_SYM, STAR,
@@ -490,7 +470,6 @@ void initActions() {
                  createAction(NEW_NODES, 1, 0, NEW_NODES, 3, 3),
                  createAction(NEW_NODES, 2, 0, NEW_NODES, 1, 1),
                  createAction(NEW_NODES, 2, 1, NEW_NODES, 1, 2),
-                 createAction(true),
              });
   addActions(COMP_STAR_SYM, SYM, true,
              {
@@ -501,7 +480,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 4),
-                 createAction(true),
              });
   addActions(COMP_STAR_SYM, SYM, false,
              {
@@ -514,8 +492,6 @@ void initActions() {
                  createAction(VARS, 0, 3, NEW_NODES, 2, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(NEW_NODES, 1, 1, NEW_NODES, 0, 2),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(COMP_STAR_SYM, ANY,
              {
@@ -526,7 +502,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 4),
-                 createAction(true),
              });
   addActions(COMP_STAR_SYM, END_STAR,
              {
@@ -542,7 +517,6 @@ void initActions() {
                  createAction(ACTIVE_PAIR, 1, 0, NEW_NODES, 0, 2),
                  createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 2, 1),
                  createAction(NEW_NODES, 1, 0, NEW_NODES, 0, 1),
-                 createAction(true),
              });
   addActions(COMP_STAR_ANY, SYM,
              {
@@ -553,7 +527,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 4),
-                 createAction(true),
              });
   addActions(COMP_STAR_ANY, ANY,
              {
@@ -564,7 +537,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 4),
-                 createAction(true),
              });
   addActions(COMP_STAR_ANY, END_STAR,
              {
@@ -580,7 +552,6 @@ void initActions() {
                  createAction(ACTIVE_PAIR, 1, 0, NEW_NODES, 0, 2),
                  createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 2, 1),
                  createAction(NEW_NODES, 1, 0, NEW_NODES, 0, 1),
-                 createAction(true),
              });
   addActions(COMP_STAR_END, SYM,
              {
@@ -593,8 +564,6 @@ void initActions() {
                  createAction(VARS, 0, 3, NEW_NODES, 2, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(NEW_NODES, 1, 1, NEW_NODES, 0, 2),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(COMP_STAR_END, ANY,
              {
@@ -607,8 +576,6 @@ void initActions() {
                  createAction(VARS, 0, 3, NEW_NODES, 2, 0),
                  createAction(VARS, 1, 0, NEW_NODES, 1, 0),
                  createAction(NEW_NODES, 1, 1, NEW_NODES, 0, 2),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(COMP_STAR_END, END_STAR,
              {
@@ -622,7 +589,6 @@ void initActions() {
                  createAction(VARS, 1, 1, NEW_NODES, 1, 0),
                  createAction(ACTIVE_PAIR, 1, 0, NEW_NODES, 0, 2),
                  createAction(ACTIVE_PAIR, 1, 2, NEW_NODES, 1, 1),
-                 createAction(true),
              });
 
   addActions(COMP_STAR, SYM,
@@ -634,7 +600,6 @@ void initActions() {
                  createAction(VARS, 0, 3, NEW_NODES, 0, 4),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 3),
-                 createAction(true),
              });
   addActions(COMP_STAR, ANY,
              {
@@ -645,7 +610,6 @@ void initActions() {
                  createAction(VARS, 0, 3, NEW_NODES, 0, 4),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 1),
                  createAction(ACTIVE_PAIR, 1, 1, NEW_NODES, 0, 3),
-                 createAction(true),
              });
   addActions(COMP_STAR, BAR,
              {
@@ -655,7 +619,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 0, 3, NEW_NODES, 0, 4),
                  createAction(ACTIVE_PAIR, 1, 0, NEW_NODES, 0, 1),
-                 createAction(true),
              });
   addActions(COMP_STAR, END,
              {
@@ -665,7 +628,6 @@ void initActions() {
                  createAction(VARS, 0, 2, NEW_NODES, 0, 3),
                  createAction(VARS, 0, 3, NEW_NODES, 0, 4),
                  createAction(ACTIVE_PAIR, 1, 0, NEW_NODES, 0, 1),
-                 createAction(true),
              });
 
   addActions(SLASH, COMP_STAR_AUX, true,
@@ -675,8 +637,6 @@ void initActions() {
                  createAction(VARS, 0, 0, NEW_NODES, 0, 0),
                  createAction(VARS, 1, 1, NEW_NODES, 0, 1),
                  createAction(VARS, 1, 2, NEW_NODES, 0, 2),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(SLASH, COMP_STAR_AUX, false,
              {
@@ -685,8 +645,6 @@ void initActions() {
                  createAction(VARS, 0, 0, NEW_NODES, 0, 1),
                  createAction(VARS, 1, 0, NEW_NODES, 0, 0),
                  createAction(VARS, 1, 2, NEW_NODES, 0, 2),
-                 createAction(true),
-                 createAction(false),
              });
   addActions(SLASH, SYM,
              {
@@ -708,29 +666,40 @@ void initActions() {
              });
 
   addActions(SYM, STAR_DEL,
-             {createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0), createAction(true)});
+             {
+                 createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
+             });
   addActions(ANY, STAR_DEL,
-             {createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0), createAction(true)});
+             {
+                 createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 0),
+             });
   addActions(END_STAR, STAR_DEL,
-             {createAction(NIL, 1), createAction(VARS, 0, 0, VARS, 1, 0),
-              createAction(VARS, 0, 1, NEW_NODES, 0, 0), createAction(true),
-              createAction(false)});
+             {
+                 createAction(NIL, 1),
+                 createAction(VARS, 0, 0, VARS, 1, 0),
+                 createAction(VARS, 0, 1, NEW_NODES, 0, 0),
+             });
   addActions(NIL, RULE_STAR,
-             {createAction(VARS, 1, 0, VARS, 1, 2),
-              createAction(VARS, 1, 1, ACTIVE_PAIR, 0, 0),
-              createAction(false)});
+             {
+                 createAction(VARS, 1, 0, VARS, 1, 2),
+                 createAction(VARS, 1, 1, ACTIVE_PAIR, 0, 0),
+             });
   addActions(NIL, END_STAR,
-             {createAction(VARS, 1, 0, VARS, 1, 1), createAction(true),
-              createAction(false)});
-  addActions(
-      NIL, SYM,
-      {createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0), createAction(false)});
+             {
+                 createAction(VARS, 1, 0, VARS, 1, 1),
+             });
+  addActions(NIL, SYM,
+             {
+                 createAction(VARS, 1, 0, ACTIVE_PAIR, 0, 0),
+             });
 
   // LOOP
   addActions(ANY, RULE_STAR, false,
-             {createAction(VARS, 1, 1, ACTIVE_PAIR, 1, 0),
-              createAction(VARS, 1, 2, ACTIVE_PAIR, 1, 2),
-              createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 3), createAction(true)});
+             {
+                 createAction(VARS, 1, 1, ACTIVE_PAIR, 1, 0),
+                 createAction(VARS, 1, 2, ACTIVE_PAIR, 1, 2),
+                 createAction(VARS, 0, 0, ACTIVE_PAIR, 1, 3),
+             });
   addActions(SYM, RULE_STAR,
              {
                  createAction(SYM, -1),
