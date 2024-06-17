@@ -39,6 +39,14 @@ inline __device__ int atomicAggInc(unsigned long long *ctr) {
   return g.shfl(warp_res, 0) + g.thread_rank();
 }
 
+inline __device__ int atomicAggInc(uint32_t *ctr) {
+  auto g = cg::coalesced_threads();
+  int warp_res;
+  if (g.thread_rank() == 0)
+    warp_res = atomicAdd(ctr, g.size());
+  return g.shfl(warp_res, 0) + g.thread_rank();
+}
+
 inline __device__ int atomicAggInc(int32_t *ctr) {
   auto g = cg::coalesced_threads();
   int warp_res;

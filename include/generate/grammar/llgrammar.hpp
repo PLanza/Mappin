@@ -7,6 +7,7 @@
 
 namespace grammar {
 
+// TODO: Extend to LL(n) grammars
 class LLParseTable : public ParseTable {
 public:
   LLParseTable(uint32_t, uint32_t, grammar_rules &, const char *);

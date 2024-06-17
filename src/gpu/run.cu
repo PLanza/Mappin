@@ -1,5 +1,6 @@
 #include "../../include/generate/grammar.hpp"
 #include "../../include/gpu/actions.hpp"
+// #include "../../include/gpu/draw.hpp"
 #include "../../include/gpu/inet.hpp"
 #include "../../include/gpu/kernel.cuh"
 #include "../../include/gpu/network.hpp"
@@ -12,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 void _checkCudaErrors(cudaError_t err, const char *file, const int line) {
   if (cudaSuccess != err) {
@@ -26,11 +28,12 @@ void _checkCudaErrors(cudaError_t err, const char *file, const int line) {
 
 #define checkCudaErrors(err) _checkCudaErrors(err, __FILE__, __LINE__)
 
-NodeElement *
-copyInteractionNet(NodeElement *output_node, NodeElement *src_network,
-                   NodeElement *dst_network, uint32_t *net_size,
-                   ParallelQueue<uint32_t, MAX_INTERACTIONS_SIZE> *copy_queue) {
-  unsigned long long queue_head;
+NodeElement *copyInteractionNet(
+    NodeElement *output_node, NodeElement *src_network,
+    NodeElement *dst_network, uint32_t *net_size,
+    ParallelQueue<uint32_t, MAX_INTERACTIONS_SIZE> *copy_queue,
+    ParallelQueue<Interaction, MAX_INTERACTIONS_SIZE> *inters_queue) {
+  unsigned long long copy_queue_head = 0;
   uint32_t value = 1;
   // Copy the output node
   checkCudaErrors(cudaMemcpy(dst_network + 1, output_node,
@@ -39,13 +42,13 @@ copyInteractionNet(NodeElement *output_node, NodeElement *src_network,
   checkCudaErrors(cudaMemcpy(&(output_node + 1)->flags, &value,
                              sizeof(uint32_t), cudaMemcpyHostToDevice));
 
+  // Reset the copy queue
+  checkCudaErrors(cudaMemset(&copy_queue->head, 0, sizeof(unsigned long long)));
+  checkCudaErrors(cudaMemset(&copy_queue->tail, 0, sizeof(unsigned long long)));
+
   // Add the first node to the copy queue
-  checkCudaErrors(cudaMemcpy(&queue_head, &copy_queue->head,
-                             sizeof(unsigned long long),
-                             cudaMemcpyDeviceToHost));
-  checkCudaErrors(
-      cudaMemcpy(&copy_queue->buffer + queue_head % MAX_INTERACTIONS_SIZE,
-                 output_node + 4, sizeof(NodeElement), cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaMemcpy(&copy_queue->buffer, output_node + 4,
+                             sizeof(NodeElement), cudaMemcpyDeviceToDevice));
 
   value += 6;
   checkCudaErrors(
@@ -53,7 +56,7 @@ copyInteractionNet(NodeElement *output_node, NodeElement *src_network,
 
   int32_t queue_count = 1;
   while (queue_count != 0) {
-    checkCudaErrors(cudaMemcpy(&queue_head, &copy_queue->head,
+    checkCudaErrors(cudaMemcpy(&copy_queue_head, &copy_queue->head,
                                sizeof(unsigned long long),
                                cudaMemcpyDeviceToHost));
     checkCudaErrors(cudaMemcpy(&copy_queue->head, &copy_queue->tail,
@@ -65,29 +68,41 @@ copyInteractionNet(NodeElement *output_node, NodeElement *src_network,
 
     copyNetwork<<<grid_dim_x, BLOCK_DIM_X>>>(src_network, net_size, dst_network,
                                              copy_queue, queue_count,
-                                             queue_head);
+                                             copy_queue_head);
     cudaDeviceSynchronize();
 
     checkCudaErrors(cudaMemcpy(&queue_count, &copy_queue->count,
                                sizeof(int32_t), cudaMemcpyDeviceToHost));
   }
+
+  // Rewire the interactions
+  uint32_t inters_count;
+  checkCudaErrors(cudaMemcpy(&inters_count, &inters_queue->count,
+                             sizeof(int32_t), cudaMemcpyDeviceToHost));
+  uint32_t grid_dim_x = inters_count / BLOCK_DIM_X + 1;
+
+  rewireInteractions<<<grid_dim_x, BLOCK_DIM_X>>>(src_network, inters_queue);
+
   return dst_network + 1;
 }
 
+uint32_t total_inters = 0;
 NodeElement *runInteractionNet(
     ParallelQueue<Interaction, MAX_INTERACTIONS_SIZE> *inters_queue_d,
     ParallelQueue<uint32_t, MAX_INTERACTIONS_SIZE> *copy_queue_d,
     NodeElement *&network_d, NodeElement *&network_copy_d, uint32_t *net_size_d,
     HostINetwork &starting_net) {
 
-  uint32_t total_inters = 0;
   unsigned long long queue_head = 0;
   int32_t queue_count = starting_net.interactions.size();
 
   uint32_t net_size_h;
   NodeElement *output_node = network_d + starting_net.network.size() - 6;
 
+  uint32_t iters = 0;
+
   while (queue_count != 0) {
+    iters += 1;
     checkCudaErrors(cudaMemcpy(&queue_head, &inters_queue_d->head,
                                sizeof(unsigned long long),
                                cudaMemcpyDeviceToHost));
@@ -102,23 +117,53 @@ NodeElement *runInteractionNet(
     reduceNetwork<<<grid_dim_x, BLOCK_DIM_X>>>(
         inters_queue_d, network_d, net_size_d, queue_count, queue_head);
     cudaDeviceSynchronize();
-    std::cout << "Total interactions so far: " << total_inters << "\n\n";
+
+    checkCudaErrors(cudaMemcpy(&net_size_h, net_size_d, sizeof(uint32_t),
+                               cudaMemcpyDeviceToHost));
+
+    // Drawing
+    // std::cout << "Size before collection: " << net_size_h << std::endl;
+    //
+    // output_node = copyInteractionNet(output_node, network_d, network_copy_d,
+    //                                  net_size_d, copy_queue_d,
+    //                                  inters_queue_d);
+    // NodeElement *tmp = network_d;
+    // network_d = network_copy_d;
+    // network_copy_d = tmp;
+    //
+    // checkCudaErrors(cudaMemcpy(&net_size_h, net_size_d, sizeof(uint32_t),
+    //                            cudaMemcpyDeviceToHost));
+    // std::cout << "Size after collection: " << net_size_h << std::endl;
+    // NodeElement *network_h =
+    //     (NodeElement *)malloc(sizeof(NodeElement) * net_size_h);
+    // checkCudaErrors(cudaMemcpy(network_h, network_d,
+    //                            sizeof(NodeElement) * net_size_h,
+    //                            cudaMemcpyDeviceToHost));
+    // drawNetwork(network_h);
+    // End Drawing
 
     checkCudaErrors(cudaMemcpy(&queue_count, &inters_queue_d->count,
                                sizeof(int32_t), cudaMemcpyDeviceToHost));
 
-    checkCudaErrors(cudaMemcpy(&net_size_h, net_size_d, sizeof(uint32_t),
-                               cudaMemcpyDeviceToHost));
     // If nearing the limit network size copy collect it
     if (net_size_h + queue_count * 40 > MAX_NETWORK_SIZE) {
+      Timing *timing = new Timing();
+      timing->StartCounter();
+
       std::cout << "Copy collecting network" << std::endl;
-      output_node = copyInteractionNet(output_node, network_d, network_copy_d,
-                                       net_size_d, copy_queue_d);
+      output_node =
+          copyInteractionNet(output_node, network_d, network_copy_d, net_size_d,
+                             copy_queue_d, inters_queue_d);
       NodeElement *tmp = network_d;
       network_d = network_copy_d;
       network_copy_d = tmp;
+      std::cout << "Copying took " << timing->GetCounter() << " ms"
+                << std::endl;
     }
+    // std::cout << "Total interactions so far: " << total_inters << "\n\n";
   }
+  std::cout << iters << " iterations" << std::endl;
+
   return output_node;
 }
 
@@ -128,14 +173,18 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
 
   struct cudaFuncAttributes funcAttrib;
   checkCudaErrors(cudaFuncGetAttributes(&funcAttrib, reduceNetwork));
-  printf("%s numRegs=%d\n", "runINet", funcAttrib.numRegs);
+  printf("%s numRegs=%d\n", "reduceNetwork", funcAttrib.numRegs);
 
   initActions();
 
   copyConstantData();
 
+  Timing *timing = new Timing();
+  timing->StartCounter();
+
   // Set up starting interaction network
   std::vector<grammar::Token> tokens = grammar->stringToTokens(input_string);
+  std::cout << tokens.size() << std::endl;
   HostINetwork host_network(grammar->getStackActions(), tokens);
   uint32_t net_size_h = host_network.network.size();
 
@@ -169,7 +218,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
       newParallelQueue<uint32_t, MAX_INTERACTIONS_SIZE>(
           std::vector<uint32_t>());
 
-  Timing *timing = new Timing();
+  std::cout << "Setup took " << timing->GetCounter() << " ms" << std::endl;
   timing->StartCounter();
 
   NodeElement *output_node =
@@ -180,7 +229,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
   timing->StartCounter();
 
   copyInteractionNet(output_node, network_d, network_copy_d, net_size_d,
-                     copy_queue_d);
+                     copy_queue_d, inters_queue_d);
   std::cout << "Copying the network took " << timing->GetCounter() << " ms"
             << std::endl;
 
@@ -190,6 +239,7 @@ void parse(std::unique_ptr<grammar::Grammar> grammar,
                              cudaMemcpyDeviceToHost));
   std::cout << "Output network has " << output_net_size << " NodeElements"
             << std::endl;
+  std::cout << "Total interactions: " << total_inters << "\n\n";
 
   // Copy output network
   NodeElement *output_network_h =

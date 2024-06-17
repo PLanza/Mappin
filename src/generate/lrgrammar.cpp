@@ -344,7 +344,7 @@ void LRGrammar::removeUselessActions() {
 
       for (uint32_t l_term = 0; l_term < this->terms_size; l_term++) {
         auto l_follow = this->parse_table->getFollowSet({TERM, l_term});
-        if (l_follow.find({TERM, r_term}) != l_follow.end()) {
+        if (l_follow.find(r_term) != l_follow.end()) {
           std::vector<StackAction> &l_actions = this->stack_actions[l_term];
           // std::cout << "\t and " << terminals[l_term] << std::endl;
 
