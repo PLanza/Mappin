@@ -12,8 +12,6 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
 set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} "-g -G")
 
-# set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-ftime-report")
-
 # Required for coding remotely on a computer without a GPU
 set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -34,10 +32,6 @@ FetchContent_MakeAvailable(drag)
 
 set(SOURCE
     src/main.cpp
-    src/parse/draw.cpp
-    src/parse/inet.cpp
-    src/parse/nodes.cpp
-    src/parse/parser.cpp
     src/generate/grammar_parser.cpp
     src/generate/grammar.cpp
     src/generate/llgrammar.cpp
@@ -49,6 +43,7 @@ set(SOURCE
     src/gpu/run.cu
     src/gpu/inet.cu
     src/gpu/timing.cu
+    src/gpu/draw.cpp
 )
 
 set(HEADERS
@@ -58,10 +53,7 @@ set(HEADERS
   include/generate/grammar/llgrammar.hpp
   include/generate/grammar/lrgrammar.hpp
   include/generate/grammar/lrtable.hpp
-  include/parse/draw.hpp
-  include/parse/inet.hpp
-  include/parse/nodes.hpp
-  include/parse/parser.hpp
+  include/gpu/draw.hpp
   include/gpu/actions.hpp
   include/gpu/inet.hpp
   include/gpu/run.hpp
