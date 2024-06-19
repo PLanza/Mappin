@@ -14,8 +14,8 @@ int main() {
     g->printGrammar();
     g->makeParseTable();
     g->printParseTable();
-    // g->generateStackActions();
-    // g->printStackActions();
+    g->generateStackActions();
+    g->printStackActions();
   } catch (MappinException *e) {
     const char *e_str = e->what();
     std::cerr << e_str << std::endl;

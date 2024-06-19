@@ -1,4 +1,5 @@
 #include "../../include/generate/grammar/lrtable.hpp"
+#include <algorithm>
 #include <iostream>
 
 namespace boost {
@@ -27,13 +28,11 @@ std::unordered_set<uint32_t> LRParseTable::getFirstSet(Token token) {
   std::unordered_set<uint32_t> &first = this->first_sets[non_term];
 
   std::vector<uint32_t> to_visit = {non_term};
+  uint32_t visiting = 0;
 
-  while (!to_visit.empty()) {
-    uint32_t visiting = to_visit.back();
-    to_visit.pop_back();
-
+  while (visiting < to_visit.size()) {
     for (auto const &[head, rhs, _] : this->grammar->rules) {
-      if (head.id == visiting) {
+      if (head.id == to_visit[visiting]) {
         if (rhs[0].kind == TERM) {
           first.insert(rhs[0].id);
         } else {
@@ -47,65 +46,65 @@ std::unordered_set<uint32_t> LRParseTable::getFirstSet(Token token) {
         }
       }
     }
+    visiting++;
   }
 
   return first;
 }
 
-LRState LRParseTable::getStateClosure(unfinished_lrstate &unfinished) {
+void insertConfig(LRState &s, Config c) {
+  if (std::find(s.begin(), s.end(), c) == s.end())
+    s.push_back(c);
+}
+
+void LRParseTable::getStateClosure(LRState &unfinished) {
   grammar_rules &rules = this->grammar->rules;
 
-  uint32_t prev_size = 0;
-  while (unfinished.size() != prev_size) {
-    prev_size = unfinished.size();
+  std::size_t curr_config = 0;
+  while (curr_config < unfinished.size()) {
+    Config config = unfinished[curr_config];
+    curr_config++;
 
-    for (Config const &config : unfinished) {
-      std::vector<Token> config_rule_rhs = std::get<1>(rules[config.rule_idx]);
-      if (config.bullet == config_rule_rhs.size()) {
+    std::vector<Token> config_rule_rhs = std::get<1>(rules[config.rule_idx]);
+    if (config.bullet == config_rule_rhs.size())
+      continue;
+
+    Token next = config_rule_rhs[config.bullet];
+    if (next.kind == TERM)
+      continue;
+
+    for (size_t rule = 0; rule < rules.size(); rule++) {
+      if (std::get<0>(rules[rule]).id != next.id)
         continue;
-      }
 
-      Token next = config_rule_rhs[config.bullet];
-      if (next.kind == TERM)
+      if (config.bullet + 1 == config_rule_rhs.size() ||
+          config.rule_idx == this->grammar->start_rule) {
+        insertConfig(unfinished, Config(rule, 0, config.lookahead));
         continue;
-
-      for (size_t rule = 0; rule < rules.size(); rule++) {
-        if (std::get<0>(rules[rule]).id != next.id)
-          continue;
-
-        if (config.bullet + 1 == config_rule_rhs.size() ||
-            config.rule_idx == this->grammar->start_rule) {
-          unfinished.insert(Config(rule, 0, config.lookahead));
-          continue;
-        }
+      } else {
         std::unordered_set<uint32_t> first_set =
-            this->getFirstSet(config_rule_rhs[config.bullet]);
-        for (uint32_t lookahead : first_set) {
-          unfinished.insert(Config(rule, 0, lookahead));
-        }
+            this->getFirstSet(config_rule_rhs[config.bullet + 1]);
+        for (uint32_t lookahead : first_set)
+          insertConfig(unfinished, Config(rule, 0, lookahead));
       }
     }
   }
-
-  LRState state;
-  for (Config c : unfinished)
-    state.push_back(c);
-  return state;
 }
 
 LRState LRParseTable::generateNextState(uint32_t state, Token token) {
-  unfinished_lrstate unfinished;
+  LRState unfinished;
   for (const Config &config : this->states[state]) {
     if (std::get<1>(this->grammar->rules[config.rule_idx]).size() ==
         config.bullet)
       continue;
     else if (std::get<1>(
                  this->grammar->rules[config.rule_idx])[config.bullet] == token)
-      unfinished.insert(
+      unfinished.push_back(
           Config(config.rule_idx, config.bullet + 1, config.lookahead));
   }
 
-  return this->getStateClosure(unfinished);
+  this->getStateClosure(unfinished);
+  return unfinished;
 }
 
 // Checks if two states contain the same configurations
@@ -132,14 +131,13 @@ int LRParseTable::findState(const LRState &state) {
 }
 
 void LRParseTable::generateStates() {
-  unfinished_lrstate start_set = {Config{this->grammar->start_rule, 0, 1}};
-  LRState start_state = this->getStateClosure(start_set);
+  LRState start_state = {Config{this->grammar->start_rule, 0, 1}};
+  this->getStateClosure(start_state);
   this->states = {start_state};
 
   std::size_t curr_state = 0;
-  std::size_t prev_size = this->states.size();
-
   while (curr_state < this->states.size()) {
+
     this->trans_table.push_back({});
     for (uint32_t term = 2; term < this->grammar->terms_size; term++) {
       LRState next_state =
@@ -172,7 +170,6 @@ void LRParseTable::generateStates() {
     }
 
     curr_state++;
-    prev_size = this->states.size();
   }
 
   this->state_count = this->states.size();
@@ -229,7 +226,7 @@ LRParseTable::LRParseTable(Grammar *grammar) : grammar(grammar) {
 
   this->generateStates();
 
-  // this->printStates();
+  this->printStates();
 
   this->fillTables();
 }

@@ -22,7 +22,6 @@ struct Config {
       : rule_idx(rule_idx), bullet(bullet), lookahead(lookahead) {}
 };
 
-typedef std::unordered_set<Config, boost::hash<Config>> unfinished_lrstate;
 typedef std::vector<Config> LRState;
 
 class LRParseTable : public ParseTable {
@@ -52,7 +51,7 @@ private:
   std::unordered_map<Token, std::unordered_set<uint32_t>, boost::hash<Token>>
       follow_sets;
 
-  LRState getStateClosure(unfinished_lrstate &unfinished);
+  void getStateClosure(LRState &unfinished);
   LRState generateNextState(uint32_t, Token);
   void generateStates();
   void fillTables();
